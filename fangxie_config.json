@@ -1,0 +1,40 @@
+{
+  "use_stream": false,
+  "stream_main_url": "https://api.aifuwu.icu/v1",
+  "stream_main_key": "sk-QmsHV9TTsAObA95iTVELBzqsPvV0MZNCAVckZHT5R2vnpGoe",
+  "stream_main_model": "gemini-3-pro-preview",
+  "stream_main_max_tokens": 16000,
+  "stream_backup_url": "https://yunyi.rdzhvip.com/codex/v1",
+  "stream_backup_key": "E8WP39Q7-0TVG-CFZJ-GA60-FMBUCFW6BE8P",
+  "stream_backup_model": "gpt-5.3-codex",
+  "stream_backup_max_tokens": 16000,
+  "non_stream_main_url": "https://cdn.12ai.org/v1",
+  "non_stream_main_key": "sk-fUfL8SIUOEDliYgQ0oKx8bPsaDBXcSJfsOu2Mu3VO8NzBAZd",
+  "non_stream_main_model": "gemini-2.5-pro-c",
+  "non_stream_main_max_tokens": 16000,
+  "non_stream_backup_url": "https://yunyi.rdzhvip.com/codex/v1",
+  "non_stream_backup_key": "E8WP39Q7-0TVG-CFZJ-GA60-FMBUCFW6BE8P",
+  "non_stream_backup_model": "gpt-5.3-codex",
+  "non_stream_backup_max_tokens": 5000,
+  "yinliu_templates": {
+    "置顶引流": [
+      "关于怎么彻底走出这个困局，我在主页置顶视频里讲得很透。那里有一套方法，是我这些年摸爬滚打总结出来的，不适合在这里公开讲。你要是真想改变，点我头像，去看置顶第一条，看完你就明白该怎么做了。",
+      "现在你就点开我的头像，进我主页，去看置顶的那个视频，我在那里给你留了一套破局的方法。听得懂那便是你的收获，听不懂说明时机还没到。准备好了吗？这一局该你赢了。",
+      "从今天开始，学着为自己活一次... 答应我，现在点击我的头像进主页看看，置顶前两条视频，那里有我想对你说的心里话，这些话我只说给你听，因为你扛了太久，总该有人懂你的不易。",
+      "如果你也想从这种困境里走出来，想活得通透一点、轻松一点，点我头像，去看主页置顶的视频。那里有你一直在找的答案，也有你需要的那份力量。我在那里等你。"
+    ],
+    "橱窗引流": [
+      "现在你只需要做一件事，点开我的头像，进入主页橱窗，不要带着太多顾虑去挑拣，也不要问哪一件最好，你静静的看。若它让你心有所动，那就是适合你的，切莫错过。",
+      "选一件，是给自己一份小小的犒赏；选两件，是为自己的生活增添一点温暖；若你愿意，选三件，就是给自己一个完整的礼物，让生活多一些美好。",
+      "去吧，朋友，点开头像进橱窗，去找回那个本该发光的自己。我在那头等着，看你越来越好，自在如风。",
+      "选一件，第一眼入心的就是你接下来全力冲锋的底气；选2件，便是对自己一路隐忍坚持的犒赏；选3件，更代表你不只顾着当下赶路，还在为长远未来布局筹谋。"
+    ],
+    "带货引流": [
+      "轻轻一点左下角，它就能到你家。我知道你会犹豫，怕没用，怕白费钱，但我劝你大胆试这一次。这不是消费，是投资，投资你的安稳生活，投资你的人生底气。点击左下角把它请回家...",
+      "好东西从不会长久停留，立刻点击左下角，让这份美好为你的生活增添一点温暖和力量...",
+      "如今这几件东西我把它放到了左下角的通道里，别再犹豫了，去左下角把它请回家吧。这不是在帮别人，是在帮你自己... 对自己好一点，你值得。",
+      "现在请顺应内心的指引，点击下方通道，把这款好物带回家。你为别人操心了大半辈子，是时候对自己好一点了。"
+    ]
+  },
+  "similarity_threshold": 0.72
+}
