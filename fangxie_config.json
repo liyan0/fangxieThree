@@ -59,11 +59,11 @@
       "别再犹豫了，点击左下角把它请回家。你为别人付出了那么多，是时候对自己好一点了。"
     ]
   },
-  "input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/提取的视频文案/带货文案待改写/仿写文案.txt",
+  "input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/提取的视频文案/带货文案待改写/批量改写带货文案.xlsx",
   "output_path": "D:\\A百家号带货视频\\带货文案",
   "txt_output_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/引导文案",
-  "daishu_input_path": "D:\\AIDownloadFiles\\国学json\\百家号带货视频\\baijiadaihuo\\input\\提取的视频文案\\带书文案待改写素材\\带书文案待改写.xlsx",
-  "daishu_txt_output_path": "D:\\AIDownloadFiles\\国学json\\百家号带货视频\\baijiadaihuo\\input\\视频文案\\带书文案",
+  "daishu_input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/提取的视频文案/Book文案待改写素材/Book文案待改写.xlsx",
+  "daishu_txt_output_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/带书文案",
   "daishu_yinliu_templates": {
     "橱窗带书引流": [
       "说了这么多，其实我只想告诉你一件事。点开我的头像，进主页橱窗，找到我为你放在那里的书。这本书能帮你把今天说的这些道理真正用起来。你看完只会觉得——早该看。",

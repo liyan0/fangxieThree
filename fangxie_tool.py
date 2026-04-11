@@ -597,6 +597,9 @@ class FangxieApp:
 
         self.create_widgets()
 
+        # 线程锁（用于保护日志方法的并发访问）- 使用可重入锁
+        self.log_lock = threading.RLock()
+
     def create_widgets(self):
         # 创建主Notebook（标签页）
         self.main_notebook = ttk.Notebook(self.root)
@@ -927,7 +930,7 @@ class FangxieApp:
         ttk.Label(voice_row1, text="音色选择:").pack(side=tk.LEFT)
         self.voice_type = tk.StringVar(value="智慧老者")
         self.voice_combo = ttk.Combobox(voice_row1, textvariable=self.voice_type, width=20, state="readonly")
-        self.voice_combo['values'] = ["鸡汤女声", "智慧老者", "沉稳大气男声"]
+        self.voice_combo['values'] = ["鸡汤女声", "智慧老者", "沉稳大气男声", "浩然"]
         self.voice_combo.pack(side=tk.LEFT, padx=5)
 
         # 文案输入目录
@@ -2525,26 +2528,32 @@ class FangxieApp:
             save_config(self.config)
 
     def log(self, message, level="normal"):
-        """添加日志"""
+        """添加日志（线程安全）"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_line = f"[{timestamp}] {message}\n"
 
-        # 配置颜色标签
-        if not hasattr(self, '_log_tags_configured'):
-            self.log_text.tag_config("error", foreground="red")
-            self.log_text.tag_config("warn", foreground="orange")
-            self.log_text.tag_config("normal", foreground="")
-            self._log_tags_configured = True
+        # 使用线程锁保护GUI操作，避免并发冲突
+        with self.log_lock:
+            # 配置颜色标签
+            if not hasattr(self, '_log_tags_configured'):
+                self.log_text.tag_config("error", foreground="red")
+                self.log_text.tag_config("warn", foreground="orange")
+                self.log_text.tag_config("normal", foreground="")
+                self._log_tags_configured = True
 
-        if level == "error":
-            self.log_text.insert(tk.END, log_line, "error")
-        elif level == "warn":
-            self.log_text.insert(tk.END, log_line, "warn")
-        else:
-            self.log_text.insert(tk.END, log_line)
+            if level == "error":
+                self.log_text.insert(tk.END, log_line, "error")
+            elif level == "warn":
+                self.log_text.insert(tk.END, log_line, "warn")
+            else:
+                self.log_text.insert(tk.END, log_line)
 
-        self.log_text.see(tk.END)
-        self.root.update()
+            self.log_text.see(tk.END)
+            # 使用 update_idletasks 代替 update，更安全
+            try:
+                self.root.update_idletasks()
+            except:
+                pass
 
         try:
             log_file = os.path.join(self.output_path.get() or ".", "debug_log.txt")
@@ -3037,10 +3046,13 @@ class FangxieApp:
                         product_name, product_material, txt_output_path,
                         used_titles_lock, used_titles):
         """单篇参考文案的生成任务（供并发调用）"""
-        self.log(f"\n=== 处理第 {idx+1} 篇：{fname} ===")
+        # 使用锁保护日志打印，确保"处理第X篇"和去重结果是连续的
+        with used_titles_lock:
+            self.log(f"\n=== 处理第 {idx+1} 篇：{fname} ===")
+            # 1. 参考文案去重
+            is_duplicate = self.check_reference_duplicate(ref_content)
 
-        # 1. 参考文案去重
-        if self.check_reference_duplicate(ref_content):
+        if is_duplicate:
             return False, fname
 
         # 2. 每篇随机选引流话术（如果需要）
@@ -3085,25 +3097,31 @@ class FangxieApp:
     # ===== 带书文案Tab方法 =====
 
     def ds_log(self, message, level="normal"):
-        """带书Tab日志输出"""
+        """带书Tab日志输出（线程安全）"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_line = f"[{timestamp}] {message}\n"
 
-        if not hasattr(self, '_ds_log_tags_configured'):
-            self.ds_log_text.tag_config("error", foreground="red")
-            self.ds_log_text.tag_config("warn", foreground="orange")
-            self._ds_log_tags_configured = True
+        # 使用线程锁保护GUI操作，避免并发冲突
+        with self.log_lock:
+            if not hasattr(self, '_ds_log_tags_configured'):
+                self.ds_log_text.tag_config("error", foreground="red")
+                self.ds_log_text.tag_config("warn", foreground="orange")
+                self._ds_log_tags_configured = True
 
-        self.ds_log_text.config(state="normal")
-        if level == "error":
-            self.ds_log_text.insert(tk.END, log_line, "error")
-        elif level == "warn":
-            self.ds_log_text.insert(tk.END, log_line, "warn")
-        else:
-            self.ds_log_text.insert(tk.END, log_line)
-        self.ds_log_text.config(state="disabled")
-        self.ds_log_text.see(tk.END)
-        self.root.update()
+            self.ds_log_text.config(state="normal")
+            if level == "error":
+                self.ds_log_text.insert(tk.END, log_line, "error")
+            elif level == "warn":
+                self.ds_log_text.insert(tk.END, log_line, "warn")
+            else:
+                self.ds_log_text.insert(tk.END, log_line)
+            self.ds_log_text.config(state="disabled")
+            self.ds_log_text.see(tk.END)
+            # 使用 update_idletasks 代替 update，更安全
+            try:
+                self.root.update_idletasks()
+            except:
+                pass
 
     def ds_on_input_mode_change(self):
         """切换参考文案输入方式"""
