@@ -538,6 +538,15 @@ DEFAULT_CONFIG = {
     "non_stream_backup_key": "sk-hc6yUaXg89eK5UgUii10DPWmdaJZdPXqPbPcKSRbmWgxeeDK",
     "non_stream_backup_model": "gemini-3-pro-preview",
     "non_stream_backup_max_tokens": 16000,
+    # 清洗规则配置
+    "wash_type": "规则清洗",
+    "wash_api_url": "",
+    "wash_api_key": "",
+    "wash_api_model": "gemini-2.5-flash",
+    # 文案清洗页面配置
+    "wash_page_type": "合并清洗",
+    "wash_page_concurrency": 3,
+    "wash_page_directory": "",  # 文案清洗目录路径
     # 引流话术库（按类型分开存储）
     "yinliu_templates": {
         "置顶引流": [
@@ -643,7 +652,12 @@ class FangxieApp:
         self.main_notebook.add(self.video_page, text="  视频制作  ")
         self.create_video_page()
 
-        # === 标签页3：API配置 ===
+        # === 标签页4：文案清洗 ===
+        self.wash_page = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.wash_page, text="  文案清洗  ")
+        self.create_wash_page()
+
+        # === 标签页5：API配置 ===
         self.api_page = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.api_page, text="  API配置  ")
         self.create_api_page()
@@ -791,6 +805,15 @@ class FangxieApp:
         ttk.Combobox(cfg_row1, textvariable=self.ds_word_count_var,
                      values=["600", "700", "800", "900", "1000", "1100", "1200", "1300", "1400", "1500", "1600", "1700", "1800"], width=6).pack(side="left", padx=4)
 
+        # 清洗规则显示（只读）
+        cfg_row2 = ttk.Frame(cfg_frame)
+        cfg_row2.pack(fill="x", pady=4)
+        ttk.Label(cfg_row2, text="清洗规则：").pack(side="left")
+        current_wash = self.config.get("wash_type", "规则清洗")
+        self.ds_wash_label = ttk.Label(cfg_row2, text=current_wash, foreground="blue", font=("", 9, "bold"))
+        self.ds_wash_label.pack(side="left", padx=4)
+        ttk.Label(cfg_row2, text="（在API配置页面修改）", foreground="gray").pack(side="left", padx=4)
+
         # 带书文案保存路径
         txt_row = ttk.Frame(cfg_frame)
         txt_row.pack(fill="x", pady=4)
@@ -901,12 +924,15 @@ class FangxieApp:
         ttk.Button(paste_btn_frame, text="清空", command=lambda: self.paste_text.delete("1.0", tk.END), width=10).pack(side=tk.LEFT)
 
         # === 输出路径 ===
-        output_frame = ttk.LabelFrame(main_frame, text="输出保存路径", padding="10")
-        output_frame.pack(fill=tk.X, pady=5)
+        # 暂时隐藏，不使用
+        # output_frame = ttk.LabelFrame(main_frame, text="输出保存路径", padding="10")
+        # output_frame.pack(fill=tk.X, pady=5)
+        # self.output_path = tk.StringVar(value=self.config.get("output_path", r"D:\A百家号带货视频\带货文案"))
+        # ttk.Entry(output_frame, textvariable=self.output_path, width=70).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # ttk.Button(output_frame, text="选择文件夹", command=self.select_output_folder, width=10).pack(side=tk.LEFT, padx=5)
 
+        # 保留变量定义，避免代码报错
         self.output_path = tk.StringVar(value=self.config.get("output_path", r"D:\A百家号带货视频\带货文案"))
-        ttk.Entry(output_frame, textvariable=self.output_path, width=70).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(output_frame, text="选择文件夹", command=self.select_output_folder, width=10).pack(side=tk.LEFT, padx=5)
 
         # === 流量文案保存路径 ===
         txt_output_frame = ttk.LabelFrame(main_frame, text="流量文案保存路径（生成流量文案按钮使用）", padding="10")
@@ -974,6 +1000,18 @@ class FangxieApp:
             ttk.Radiobutton(flow_frame, text=ft, variable=self.flow_type, value=ft,
                            command=self.on_flow_type_change).pack(side=tk.LEFT, padx=10)
 
+        # === 清洗规则显示（只读） ===
+        wash_frame = ttk.LabelFrame(main_frame, text="清洗规则", padding="10")
+        wash_frame.pack(fill=tk.X, pady=5)
+
+        wash_row = ttk.Frame(wash_frame)
+        wash_row.pack(fill=tk.X)
+        ttk.Label(wash_row, text="当前清洗方案：").pack(side=tk.LEFT)
+        current_wash = self.config.get("wash_type", "规则清洗")
+        self.article_wash_label = ttk.Label(wash_row, text=current_wash, foreground="blue", font=("", 9, "bold"))
+        self.article_wash_label.pack(side=tk.LEFT, padx=4)
+        ttk.Label(wash_row, text="（在API配置页面修改）", foreground="gray").pack(side=tk.LEFT, padx=4)
+
         # === 引流话术区域 ===
         self.yinliu_frame = ttk.LabelFrame(main_frame, text="引流话术（可选）", padding="10")
         self.yinliu_frame.pack(fill=tk.X, pady=5)
@@ -1032,8 +1070,9 @@ class FangxieApp:
         btn_frame = ttk.Frame(self.btn_frame_container)
         btn_frame.pack()
 
-        self.start_btn = ttk.Button(btn_frame, text="开始生成", command=self.start_generate, width=15)
-        self.start_btn.pack(side=tk.LEFT, padx=10)
+        # 暂时隐藏，不使用
+        # self.start_btn = ttk.Button(btn_frame, text="开始生成", command=self.start_generate, width=15)
+        # self.start_btn.pack(side=tk.LEFT, padx=10)
 
         self.start_txt_btn = ttk.Button(btn_frame, text="生成流量文案", command=self.start_generate_txt, width=12)
         self.start_txt_btn.pack(side=tk.LEFT, padx=10)
@@ -1044,19 +1083,26 @@ class FangxieApp:
         self.stop_btn = ttk.Button(btn_frame, text="停止", command=self.stop_generate, width=10, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT, padx=10)
 
-        self.regenerate_btn = ttk.Button(btn_frame, text="重新生成", command=self.regenerate, width=12, state=tk.DISABLED)
-        self.regenerate_btn.pack(side=tk.LEFT, padx=10)
+        # 暂时隐藏，不使用
+        # self.regenerate_btn = ttk.Button(btn_frame, text="重新生成", command=self.regenerate, width=12, state=tk.DISABLED)
+        # self.regenerate_btn.pack(side=tk.LEFT, padx=10)
 
         ttk.Button(btn_frame, text="打开输出文件夹", command=self.open_output_folder, width=15).pack(side=tk.LEFT, padx=10)
         ttk.Button(btn_frame, text="去制作视频 →", command=self.go_to_video_page, width=12).pack(side=tk.LEFT, padx=10)
 
         # === 重新生成建议 ===
-        self.suggestion_frame = ttk.LabelFrame(main_frame, text="修改建议", padding="10")
-        self.suggestion_frame.pack(fill=tk.X, pady=5)
+        # 暂时隐藏，不使用
+        # self.suggestion_frame = ttk.LabelFrame(main_frame, text="修改建议", padding="10")
+        # self.suggestion_frame.pack(fill=tk.X, pady=5)
+        # ttk.Label(self.suggestion_frame, text="当您对生成的结果不满意时，请在下方输入意见，并点击重新生成：").pack(anchor=tk.W)
+        # self.suggestion_text = scrolledtext.ScrolledText(self.suggestion_frame, height=3, width=80)
+        # self.suggestion_text.pack(fill=tk.X)
 
-        ttk.Label(self.suggestion_frame, text="当您对生成的结果不满意时，请在下方输入意见，并点击重新生成：").pack(anchor=tk.W)
-        self.suggestion_text = scrolledtext.ScrolledText(self.suggestion_frame, height=3, width=80)
-        self.suggestion_text.pack(fill=tk.X)
+        # 保留变量定义，避免代码报错
+        self.start_btn = None
+        self.regenerate_btn = None
+        self.suggestion_text = scrolledtext.ScrolledText(main_frame, height=3, width=80)
+        self.suggestion_text.pack_forget()  # 创建但不显示
 
         # === 进度条 ===
         progress_frame = ttk.Frame(main_frame)
@@ -1075,6 +1121,81 @@ class FangxieApp:
 
         self.log_text = scrolledtext.ScrolledText(log_frame, height=20, width=100)
         self.log_text.pack(fill=tk.BOTH, expand=True)
+
+    def create_wash_page(self):
+        """创建文案清洗页面"""
+        main_frame = ttk.Frame(self.wash_page, padding="15")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # === 文案路径选择 ===
+        path_frame = ttk.LabelFrame(main_frame, text="文案路径", padding="10")
+        path_frame.pack(fill=tk.X, pady=5)
+
+        path_row = ttk.Frame(path_frame)
+        path_row.pack(fill=tk.X)
+        ttk.Label(path_row, text="文案目录：").pack(side=tk.LEFT)
+        self.wash_dir_var = tk.StringVar(value=self.config.get("wash_page_directory", ""))
+        ttk.Entry(path_row, textvariable=self.wash_dir_var, width=60).pack(side=tk.LEFT, padx=4, fill=tk.X, expand=True)
+        ttk.Button(path_row, text="选择目录", command=self.select_wash_directory).pack(side=tk.LEFT, padx=2)
+
+        # === 清洗配置 ===
+        config_frame = ttk.LabelFrame(main_frame, text="清洗配置", padding="10")
+        config_frame.pack(fill=tk.X, pady=5)
+
+        config_row = ttk.Frame(config_frame)
+        config_row.pack(fill=tk.X)
+
+        ttk.Label(config_row, text="清洗类型：").pack(side=tk.LEFT)
+        self.wash_type_select_var = tk.StringVar(value=self.config.get("wash_page_type", "合并清洗"))
+        wash_type_combo = ttk.Combobox(
+            config_row,
+            textvariable=self.wash_type_select_var,
+            values=["规则清洗", "合并清洗", "提示词清洗", "技能清洗"],
+            width=15,
+            state="readonly"
+        )
+        wash_type_combo.pack(side=tk.LEFT, padx=4)
+        wash_type_combo.bind("<<ComboboxSelected>>", self.on_wash_config_change)
+
+        ttk.Label(config_row, text="并发数：").pack(side=tk.LEFT, padx=(20, 0))
+        self.wash_concurrency_var = tk.StringVar(value=str(self.config.get("wash_page_concurrency", 3)))
+        wash_concurrency_spin = ttk.Spinbox(config_row, from_=1, to=10, textvariable=self.wash_concurrency_var, width=5)
+        wash_concurrency_spin.pack(side=tk.LEFT, padx=4)
+        wash_concurrency_spin.bind("<FocusOut>", self.on_wash_config_change)
+        wash_concurrency_spin.bind("<Return>", self.on_wash_config_change)
+
+        # === 操作按钮 ===
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=10)
+
+        self.wash_start_btn = ttk.Button(btn_frame, text="开始清洗", command=self.start_wash_task)
+        self.wash_start_btn.pack(side=tk.LEFT, padx=5)
+
+        self.wash_stop_btn = ttk.Button(btn_frame, text="停止", command=self.stop_wash_task, state=tk.DISABLED)
+        self.wash_stop_btn.pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(btn_frame, text="打开文案目录", command=self.open_wash_directory).pack(side=tk.LEFT, padx=5)
+
+        # === 进度显示 ===
+        progress_frame = ttk.LabelFrame(main_frame, text="清洗进度", padding="10")
+        progress_frame.pack(fill=tk.X, pady=5)
+
+        self.wash_progress_var = tk.DoubleVar(value=0)
+        self.wash_progress_bar = ttk.Progressbar(progress_frame, variable=self.wash_progress_var, maximum=100)
+        self.wash_progress_bar.pack(fill=tk.X)
+
+        self.wash_status_label = ttk.Label(progress_frame, text="就绪")
+        self.wash_status_label.pack(pady=5)
+
+        # === 日志区域 ===
+        log_frame = ttk.LabelFrame(main_frame, text="清洗日志", padding="10")
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        self.wash_log_text = scrolledtext.ScrolledText(log_frame, height=20, width=100, state=tk.DISABLED)
+        self.wash_log_text.pack(fill=tk.BOTH, expand=True)
+
+        # 初始化清洗任务状态
+        self.wash_is_running = False
 
     def create_api_page(self):
         """创建API配置页面"""
@@ -1126,6 +1247,46 @@ class FangxieApp:
         # 根据配置初始化选中的标签页
         if not self.config.get("use_stream", True):
             self.api_notebook.select(1)  # 选中非流式标签页
+
+        # === 清洗规则API配置 ===
+        wash_frame = ttk.LabelFrame(main_frame, text="文案清洗配置", padding="10")
+        wash_frame.pack(fill=tk.X, pady=(0, 10))
+
+        # 清洗类型选择
+        wash_type_row = ttk.Frame(wash_frame)
+        wash_type_row.pack(fill=tk.X, pady=4)
+        ttk.Label(wash_type_row, text="默认清洗方案:", width=12).pack(side=tk.LEFT)
+        self.api_wash_type_var = tk.StringVar(value=self.config.get("wash_type", "规则清洗"))
+        wash_type_combo = ttk.Combobox(
+            wash_type_row,
+            textvariable=self.api_wash_type_var,
+            values=["不清洗", "规则清洗", "合并清洗", "提示词清洗"],
+            width=15,
+            state="readonly"
+        )
+        wash_type_combo.pack(side=tk.LEFT, padx=4)
+        ttk.Label(wash_type_row, text="⚠️ 提示词清洗在生成时处理，其他在生成后调用API", foreground="gray").pack(side=tk.LEFT, padx=4)
+
+        # 清洗API URL
+        wash_url_row = ttk.Frame(wash_frame)
+        wash_url_row.pack(fill=tk.X, pady=4)
+        ttk.Label(wash_url_row, text="清洗API URL:", width=12).pack(side=tk.LEFT)
+        self.wash_api_url_var = tk.StringVar(value=self.config.get("wash_api_url", ""))
+        ttk.Entry(wash_url_row, textvariable=self.wash_api_url_var, width=50).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
+
+        # 清洗API Key
+        wash_key_row = ttk.Frame(wash_frame)
+        wash_key_row.pack(fill=tk.X, pady=4)
+        ttk.Label(wash_key_row, text="清洗API Key:", width=12).pack(side=tk.LEFT)
+        self.wash_api_key_var = tk.StringVar(value=self.config.get("wash_api_key", ""))
+        ttk.Entry(wash_key_row, textvariable=self.wash_api_key_var, width=50, show="*").pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
+
+        # 清洗Model
+        wash_model_row = ttk.Frame(wash_frame)
+        wash_model_row.pack(fill=tk.X, pady=4)
+        ttk.Label(wash_model_row, text="清洗Model:", width=12).pack(side=tk.LEFT)
+        self.wash_api_model_var = tk.StringVar(value=self.config.get("wash_api_model", "gemini-2.5-flash"))
+        ttk.Entry(wash_model_row, textvariable=self.wash_api_model_var, width=50).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
 
         # 去模板相似度阈值
         threshold_frame = ttk.LabelFrame(main_frame, text="去模板设置", padding="10")
@@ -2315,7 +2476,20 @@ class FangxieApp:
             self.config["non_stream_backup_key"] = self.non_stream_backup_key.get().strip()
             self.config["non_stream_backup_model"] = self.non_stream_backup_model.get().strip()
             self.config["non_stream_backup_max_tokens"] = int(self.non_stream_backup_max_tokens.get())
+            # 清洗规则配置
+            self.config["wash_type"] = self.api_wash_type_var.get().strip()
+            self.config["wash_api_url"] = self.wash_api_url_var.get().strip()
+            self.config["wash_api_key"] = self.wash_api_key_var.get().strip()
+            self.config["wash_api_model"] = self.wash_api_model_var.get().strip()
             save_config(self.config)
+
+            # 更新其他页面显示的清洗类型
+            new_wash_type = self.config.get("wash_type", "规则清洗")
+            if hasattr(self, 'ds_wash_label'):
+                self.ds_wash_label.config(text=new_wash_type)
+            if hasattr(self, 'article_wash_label'):
+                self.article_wash_label.config(text=new_wash_type)
+
             messagebox.showinfo("成功", "API配置已保存")
         except Exception as e:
             messagebox.showerror("错误", f"保存配置失败：{e}")
@@ -2818,6 +2992,22 @@ class FangxieApp:
                 self.log("\n正在替换敏感词...")
                 self.replace_sensitive_words_in_directory(txt_output_path)
                 self.log("敏感词替换完成！")
+
+                # 调用清洗API（除了提示词清洗外的其他类型）
+                wash_type = self.config.get("wash_type", "规则清洗")
+                self.log(f"\n========== 清洗配置 ==========")
+                self.log(f"清洗类型: {wash_type}")
+
+                if wash_type == "提示词清洗":
+                    self.log(f"✓ 提示词清洗已在生成时应用，无需后处理")
+                elif wash_type == "不清洗":
+                    self.log(f"ℹ️ 已跳过清洗步骤")
+                else:
+                    self.log(f"开始调用清洗API进行【{wash_type}】...")
+                    self.wash_articles_in_directory(txt_output_path, wash_type, concurrency)
+                    self.log(f"✓ {wash_type}完成！")
+
+                self.log(f"==============================\n")
 
             self.finish_txt_task()
 
@@ -3931,6 +4121,17 @@ class FangxieApp:
                 self.ds_log("\n正在替换敏感词...")
                 self.replace_sensitive_words_in_directory(txt_output, log_func=self.ds_log)
 
+                # 调用清洗API（除了提示词清洗外的其他类型）
+                wash_type = self.config.get("wash_type", "规则清洗")
+                if wash_type != "不清洗" and wash_type != "提示词清洗":
+                    concurrency = max(1, int(self.ds_concurrency_var.get()))
+                    self.ds_log(f"\n正在使用{wash_type}进行文案清洗...")
+                    self.wash_articles_in_directory(txt_output, wash_type, concurrency, log_func=self.ds_log)
+                    self.ds_log(f"{wash_type}清洗完成！")
+                self.ds_log(f"\n{'='*40}")
+                self.ds_log("所有文案处理完成！")
+                self.ds_log(f"{'='*40}")
+
         except Exception as e:
             self.ds_log(f"生成出错：{e}", level="error")
             import traceback
@@ -4094,6 +4295,376 @@ class FangxieApp:
             log_func(f"  敏感词替换出错: {str(e)}")
             import traceback
             log_func(traceback.format_exc())
+
+    def wash_articles_in_directory(self, directory, wash_type, concurrency=3, log_func=None):
+        """批量调用API清洗目录下所有txt文件"""
+        if log_func is None:
+            log_func = self.log
+
+        # 验证清洗配置
+        wash_api_url = self.config.get("wash_api_url", "").strip()
+        wash_api_key = self.config.get("wash_api_key", "").strip()
+        wash_api_model = self.config.get("wash_api_model", "gemini-2.5-flash").strip()
+
+        if not wash_api_url or not wash_api_key:
+            log_func(f"⚠️  {wash_type}API未配置，跳过清洗")
+            return
+
+        # 清洗规则路径（仿写工具专用，不含占位符保护）
+        rule_files = {
+            "规则清洗": "D:/AIDownloadFiles/国学json/仿写文案清洗规则/1_规则清洗.txt",
+            "合并清洗": "D:/AIDownloadFiles/国学json/仿写文案清洗规则/2_合并清洗.txt"
+        }
+
+        rule_file_path = rule_files.get(wash_type)
+        if not rule_file_path or not os.path.exists(rule_file_path):
+            log_func(f"⚠️  {wash_type}规则文件不存在: {rule_file_path}")
+            return
+
+        try:
+            # 读取清洗规则
+            with open(rule_file_path, 'r', encoding='utf-8') as f:
+                wash_rules = f.read()
+            log_func(f"已加载{wash_type}规则 ({len(wash_rules)}字符)")
+        except Exception as e:
+            log_func(f"⚠️  读取清洗规则失败: {e}")
+            return
+
+        # 收集所有txt文件
+        txt_files = []
+        try:
+            for fname in os.listdir(directory):
+                if fname.endswith('.txt'):
+                    fpath = os.path.join(directory, fname)
+                    txt_files.append(fpath)
+        except Exception as e:
+            log_func(f"⚠️  扫描文件夹失败: {e}")
+            return
+
+        if not txt_files:
+            log_func(f"目录下没有txt文件")
+            return
+
+        log_func(f"共找到 {len(txt_files)} 个文件，并发清洗数：{concurrency}")
+
+        # 智能拼接URL，避免重复/v1
+        base_url = wash_api_url.rstrip('/')
+        if '/v1' in base_url:
+            api_url = f"{base_url}/chat/completions"
+        else:
+            api_url = f"{base_url}/v1/chat/completions"
+
+        log_func(f"清洗API地址: {api_url}")
+        log_func(f"清洗模型: {wash_api_model}")
+
+        # 并发调用清洗API
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        success_count = 0
+        fail_count = 0
+
+        def wash_single_file(fpath):
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    original_content = f.read()
+
+                # 构建清洗提示词
+                user_prompt = wash_rules + "\n\n【原文】\n" + original_content
+
+                # 调用API
+                import requests
+
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {wash_api_key}"
+                }
+                data = {
+                    "model": wash_api_model,
+                    "messages": [{"role": "user", "content": user_prompt}],
+                    "max_tokens": 16000
+                }
+
+                response = requests.post(
+                    api_url,
+                    headers=headers,
+                    json=data,
+                    timeout=300
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    if "choices" in result and len(result["choices"]) > 0:
+                        cleaned_content = result["choices"][0]["message"]["content"].strip()
+
+                        # 保存清洗后的文件
+                        with open(fpath, 'w', encoding='utf-8') as f:
+                            f.write(cleaned_content)
+
+                        return True, f"{os.path.basename(fpath)} - 成功"
+                    else:
+                        return False, f"{os.path.basename(fpath)} - API响应格式错误"
+                else:
+                    error_detail = response.text[:200] if response.text else "无响应内容"
+                    return False, f"{os.path.basename(fpath)} - HTTP {response.status_code}: {error_detail}"
+            except Exception as e:
+                return False, f"{os.path.basename(fpath)} - 异常: {str(e)[:80]}"
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = {executor.submit(wash_single_file, fpath): fpath for fpath in txt_files}
+            for future in as_completed(futures):
+                try:
+                    ok, msg = future.result()
+                    if ok:
+                        success_count += 1
+                        log_func(f"  ✓ {msg}")
+                    else:
+                        fail_count += 1
+                        log_func(f"  ✗ {msg}")
+                except Exception as e:
+                    fail_count += 1
+                    log_func(f"  ✗ 清洗异常: {str(e)[:50]}")
+
+        log_func(f"清洗完成: 成功 {success_count} 个，失败 {fail_count} 个")
+
+    # ========== 文案清洗页面功能方法 ==========
+
+    def on_wash_config_change(self, event=None):
+        """文案清洗配置改变时保存"""
+        try:
+            self.config["wash_page_type"] = self.wash_type_select_var.get()
+            self.config["wash_page_concurrency"] = int(self.wash_concurrency_var.get())
+            save_config(self.config)
+        except Exception as e:
+            pass  # 静默失败，不影响使用
+
+    def select_wash_directory(self):
+        """选择要清洗的文案目录"""
+        directory = filedialog.askdirectory(title="选择文案目录")
+        if directory:
+            self.wash_dir_var.set(directory)
+            # 保存到配置
+            self.config["wash_page_directory"] = directory
+            save_config(self.config)
+
+    def open_wash_directory(self):
+        """打开文案目录"""
+        directory = self.wash_dir_var.get()
+        if directory and os.path.exists(directory):
+            os.startfile(directory)
+        else:
+            messagebox.showwarning("提示", "请先选择有效的文案目录")
+
+    def wash_log(self, message):
+        """文案清洗页面的日志输出"""
+        self.wash_log_text.config(state=tk.NORMAL)
+        self.wash_log_text.insert(tk.END, message + "\n")
+        self.wash_log_text.see(tk.END)
+        self.wash_log_text.config(state=tk.DISABLED)
+        self.wash_log_text.update()
+
+    def start_wash_task(self):
+        """开始清洗任务"""
+        directory = self.wash_dir_var.get().strip()
+        if not directory:
+            messagebox.showerror("错误", "请选择文案目录")
+            return
+
+        if not os.path.exists(directory):
+            messagebox.showerror("错误", "选择的目录不存在")
+            return
+
+        # 检查清洗API配置
+        wash_api_url = self.config.get("wash_api_url", "").strip()
+        wash_api_key = self.config.get("wash_api_key", "").strip()
+        if not wash_api_url or not wash_api_key:
+            messagebox.showerror("错误", "请先在API配置页面配置清洗API")
+            return
+
+        # 禁用开始按钮，启用停止按钮
+        self.wash_start_btn.config(state=tk.DISABLED)
+        self.wash_stop_btn.config(state=tk.NORMAL)
+        self.wash_is_running = True
+
+        # 清空日志
+        self.wash_log_text.config(state=tk.NORMAL)
+        self.wash_log_text.delete(1.0, tk.END)
+        self.wash_log_text.config(state=tk.DISABLED)
+
+        # 在新线程中执行清洗任务
+        thread = threading.Thread(target=self.run_wash_task, daemon=True)
+        thread.start()
+
+    def stop_wash_task(self):
+        """停止清洗任务"""
+        self.wash_is_running = False
+        self.wash_log("用户请求停止清洗...")
+
+    def run_wash_task(self):
+        """执行清洗任务的主逻辑"""
+        try:
+            directory = self.wash_dir_var.get().strip()
+            wash_type = self.wash_type_select_var.get()
+            concurrency = int(self.wash_concurrency_var.get())
+
+            self.wash_log(f"========== 开始清洗任务 ==========")
+            self.wash_log(f"文案目录: {directory}")
+            self.wash_log(f"清洗类型: {wash_type}")
+            self.wash_log(f"并发数: {concurrency}")
+            self.wash_log("")
+
+            # 获取清洗API配置
+            wash_api_url = self.config.get("wash_api_url", "").strip()
+            wash_api_key = self.config.get("wash_api_key", "").strip()
+            wash_api_model = self.config.get("wash_api_model", "gemini-2.5-flash").strip()
+
+            # 清洗规则路径
+            rule_files = {
+                "规则清洗": "D:/AIDownloadFiles/国学json/仿写文案清洗规则/1_规则清洗.txt",
+                "合并清洗": "D:/AIDownloadFiles/国学json/仿写文案清洗规则/2_合并清洗.txt",
+                "提示词清洗": "D:/AIDownloadFiles/国学json/仿写文案清洗规则/单独页面_提示词清洗.txt",
+                "技能清洗": "D:/AIDownloadFiles/国学json/仿写文案清洗规则/4_技能清洗.txt"
+            }
+
+            rule_file_path = rule_files.get(wash_type)
+            if not rule_file_path or not os.path.exists(rule_file_path):
+                self.wash_log(f"⚠️ {wash_type}规则文件不存在: {rule_file_path}")
+                self.finish_wash_task()
+                return
+
+            # 读取清洗规则
+            with open(rule_file_path, 'r', encoding='utf-8') as f:
+                wash_rules = f.read()
+            self.wash_log(f"✓ 已加载{wash_type}规则 ({len(wash_rules)}字符)")
+
+            # 收集所有txt文件
+            txt_files = []
+            for fname in os.listdir(directory):
+                if fname.endswith('.txt'):
+                    fpath = os.path.join(directory, fname)
+                    txt_files.append(fpath)
+
+            if not txt_files:
+                self.wash_log("⚠️ 目录下没有找到txt文件")
+                self.finish_wash_task()
+                return
+
+            total_files = len(txt_files)
+            self.wash_log(f"✓ 共找到 {total_files} 个txt文件\n")
+
+            # 智能拼接URL
+            base_url = wash_api_url.rstrip('/')
+            if '/v1' in base_url:
+                api_url = f"{base_url}/chat/completions"
+            else:
+                api_url = f"{base_url}/v1/chat/completions"
+
+            self.wash_log(f"清洗API: {api_url}")
+            self.wash_log(f"清洗模型: {wash_api_model}\n")
+
+            # 并发清洗
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            import requests
+
+            success_count = 0
+            fail_count = 0
+            processed_count = 0
+
+            def wash_single_file(fpath):
+                if not self.wash_is_running:
+                    return False, f"{os.path.basename(fpath)} - 已取消"
+
+                try:
+                    # 读取原文件
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        original_content = f.read()
+                    original_length = len(original_content)
+
+                    # 构建清洗提示词
+                    user_prompt = wash_rules + "\n\n【原文】\n" + original_content
+
+                    # 调用API
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {wash_api_key}"
+                    }
+                    data = {
+                        "model": wash_api_model,
+                        "messages": [{"role": "user", "content": user_prompt}],
+                        "max_tokens": 16000
+                    }
+
+                    response = requests.post(api_url, headers=headers, json=data, timeout=300)
+
+                    if response.status_code == 200:
+                        result = response.json()
+                        if "choices" in result and len(result["choices"]) > 0:
+                            cleaned_content = result["choices"][0]["message"]["content"].strip()
+                            cleaned_length = len(cleaned_content)
+
+                            # 覆盖原文件
+                            with open(fpath, 'w', encoding='utf-8') as f:
+                                f.write(cleaned_content)
+
+                            return True, f"{os.path.basename(fpath)} - 清洗前:{original_length}字 → 清洗后:{cleaned_length}字"
+                        else:
+                            return False, f"{os.path.basename(fpath)} - API响应格式错误"
+                    else:
+                        error_detail = response.text[:100] if response.text else "无响应内容"
+                        return False, f"{os.path.basename(fpath)} - HTTP {response.status_code}: {error_detail}"
+
+                except Exception as e:
+                    return False, f"{os.path.basename(fpath)} - 异常: {str(e)[:80]}"
+
+            with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                futures = {executor.submit(wash_single_file, fpath): fpath for fpath in txt_files}
+
+                for future in as_completed(futures):
+                    if not self.wash_is_running:
+                        self.wash_log("\n清洗任务已停止")
+                        break
+
+                    try:
+                        ok, msg = future.result()
+                        processed_count += 1
+
+                        if ok:
+                            success_count += 1
+                            self.wash_log(f"✓ [{processed_count}/{total_files}] {msg}")
+                        else:
+                            fail_count += 1
+                            self.wash_log(f"✗ [{processed_count}/{total_files}] {msg}")
+
+                        # 更新进度
+                        progress = (processed_count / total_files) * 100
+                        self.wash_progress_var.set(progress)
+                        self.wash_status_label.config(text=f"正在清洗第 {processed_count}/{total_files} 篇")
+
+                    except Exception as e:
+                        fail_count += 1
+                        processed_count += 1
+                        self.wash_log(f"✗ [{processed_count}/{total_files}] 清洗异常: {str(e)[:50]}")
+
+            self.wash_log(f"\n========== 清洗完成 ==========")
+            self.wash_log(f"成功: {success_count} 个")
+            self.wash_log(f"失败: {fail_count} 个")
+            self.wash_log(f"总计: {processed_count}/{total_files} 个")
+
+        except Exception as e:
+            self.wash_log(f"\n清洗任务出错: {str(e)}")
+            import traceback
+            self.wash_log(traceback.format_exc())
+
+        finally:
+            self.finish_wash_task()
+
+    def finish_wash_task(self):
+        """完成清洗任务，恢复UI状态"""
+        self.wash_is_running = False
+        self.wash_start_btn.config(state=tk.NORMAL)
+        self.wash_stop_btn.config(state=tk.DISABLED)
+        self.wash_status_label.config(text="清洗完成")
+
+    # ========== 文案清洗页面功能方法结束 ==========
 
     def regenerate(self):
         """重新生成 - 使用上次的参考文案和当前设置"""
@@ -5932,6 +6503,23 @@ class FangxieApp:
 注意：标题部分只输出5行干净的标题文字，每行一个标题，不要带"标题1："等前缀，方便直接复制使用。
 
 请直接输出仿写结果，不要有任何说明性文字。"""
+
+        # 如果选择了提示词清洗，在提示词后面添加清洗规则
+        wash_type = self.config.get("wash_type", "规则清洗")
+        if wash_type == "提示词清洗":
+            wash_rule_path = r"D:\AIDownloadFiles\国学json\仿写文案清洗规则\3_提示词清洗.txt"
+            try:
+                if os.path.exists(wash_rule_path):
+                    with open(wash_rule_path, 'r', encoding='utf-8') as f:
+                        wash_rules = f.read()
+                    prompt += f"\n\n{wash_rules}"
+                    self.log(f"✓ 已在生成提示词中添加【提示词清洗】规则 ({len(wash_rules)}字符)")
+                else:
+                    self.log(f"⚠️ 提示词清洗规则文件不存在: {wash_rule_path}")
+            except Exception as e:
+                self.log(f"⚠️ 读取提示词清洗规则失败: {e}")
+        else:
+            self.log(f"ℹ️ 当前清洗类型: {wash_type}（生成后清洗）")
 
         return prompt
 

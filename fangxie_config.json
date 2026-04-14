@@ -1,7 +1,7 @@
 {
   "use_stream": false,
   "similarity_threshold": 0.72,
-  "voice_input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/引导文案",
+  "voice_input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/流量文案",
   "voice_output_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频配音/引导语音",
   "stream_main_url": "https://api.aifuwu.icu/v1",
   "stream_main_key": "sk-hc6yUaXg89eK5UgUii10DPWmdaJZdPXqPbPcKSRbmWgxeeDK",
@@ -80,5 +80,12 @@
       "强烈推荐你去我的橱窗读一读这本书。它的核心智慧不仅适用于物品整理，更能迁移到人际关系的梳理中。它教会你果断舍弃消耗自我、毫无价值的破烂关系，摆脱必须维系关系的执念束缚。通过断——断绝不需要的关系；舍——舍弃拖累自己的关系；离——脱离对糟糕关系的执念，帮你理清关系边界，收回人生主动权。读懂它，你就能学会对无效关系及时止损，从杂乱的关系纠缠中解脱，活出轻盈清醒的人生。",
       "看到这里的朋友，人这一辈子都在和人打交道，如果对于人性茫然不知，那么你的一生就会庸庸碌碌、一事无成。所以啊，我极力推荐大家去读一读我橱窗里的这本书。这本书说尽了人情世故，讲尽了人心复杂，详细介绍了怎么做人、怎么处事、怎么沟通、怎么博弈、怎么防身、怎么化解，把所有的人性都给你讲透了。做任何事情都要顺着人性去做，你才能事半功倍。"
     ]
-  }
+  },
+  "wash_type": "合并清洗",
+  "wash_api_url": "https://cdn.12ai.org/v1",
+  "wash_api_key": "sk-fUfL8SIUOEDliYgQ0oKx8bPsaDBXcSJfsOu2Mu3VO8NzBAZd",
+  "wash_api_model": "gemini-2.5-flash",
+  "wash_page_type": "规则清洗",
+  "wash_page_concurrency": 3,
+  "wash_page_directory": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/带书文案/未清洗"
 }
