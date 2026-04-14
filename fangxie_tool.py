@@ -648,9 +648,10 @@ class FangxieApp:
         self.create_daishu_page()
 
         # === 标签页3：视频制作 ===
-        self.video_page = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.video_page, text="  视频制作  ")
-        self.create_video_page()
+        # 暂时隐藏，未调通
+        # self.video_page = ttk.Frame(self.main_notebook)
+        # self.main_notebook.add(self.video_page, text="  视频制作  ")
+        # self.create_video_page()
 
         # === 标签页4：文案清洗 ===
         self.wash_page = ttk.Frame(self.main_notebook)
