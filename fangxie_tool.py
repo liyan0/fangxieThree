@@ -612,13 +612,6 @@ class FangxieApp:
             "纯夸赞不引流": None
         }
 
-        # 视频制作相关配置
-        self.video_source_path = r"D:\BaiduNetdiskDownload\自然风景视频素材"
-        self.max_videos_per_folder = 3
-        self.ffmpeg_path = r"C:\Users\Administrator\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe"
-        self.ffprobe_path = r"C:\Users\Administrator\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.0.1-full_build\bin\ffprobe.exe"
-        self.whisper_model = None
-        self.video_is_running = False
 
         self.create_widgets()
 
@@ -1089,7 +1082,6 @@ class FangxieApp:
         # self.regenerate_btn.pack(side=tk.LEFT, padx=10)
 
         ttk.Button(btn_frame, text="打开输出文件夹", command=self.open_output_folder, width=15).pack(side=tk.LEFT, padx=10)
-        ttk.Button(btn_frame, text="去制作视频 →", command=self.go_to_video_page, width=12).pack(side=tk.LEFT, padx=10)
 
         # === 重新生成建议 ===
         # 暂时隐藏，不使用
@@ -1330,958 +1322,7 @@ class FangxieApp:
         mode = "流式调用" if self.use_stream.get() else "非流式调用"
         self.api_mode_label.config(text=f"当前使用：{mode}")
 
-    def create_video_page(self):
-        """创建视频制作页面"""
-        # 创建滚动框架
-        canvas = tk.Canvas(self.video_page)
-        scrollbar = ttk.Scrollbar(self.video_page, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
 
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        def _on_mousewheel_video(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind("<Enter>", lambda e: self.root.bind_all("<MouseWheel>", _on_mousewheel_video))
-        canvas.bind("<Leave>", lambda e: self.root.unbind_all("<MouseWheel>"))
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        main_frame = ttk.Frame(scrollable_frame, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # 标题
-        ttk.Label(main_frame, text="视频制作", font=("微软雅黑", 14, "bold")).pack(pady=(0, 10))
-
-        # === 模式选择 ===
-        mode_frame = ttk.LabelFrame(main_frame, text="1. 选择制作模式", padding="10")
-        mode_frame.pack(fill=tk.X, pady=5)
-
-        self.video_mode = tk.StringVar(value="audio")
-        ttk.Radiobutton(mode_frame, text="使用已有音频（Whisper识别字幕）",
-                       variable=self.video_mode, value="audio",
-                       command=self.on_video_mode_change).pack(anchor=tk.W)
-        ttk.Radiobutton(mode_frame, text="从生成的文案制作（TTS生成配音）",
-                       variable=self.video_mode, value="tts",
-                       command=self.on_video_mode_change).pack(anchor=tk.W)
-
-        # === 音频选择区域 ===
-        self.audio_frame = ttk.LabelFrame(main_frame, text="2. 选择配音文件", padding="10")
-        self.audio_frame.pack(fill=tk.X, pady=5)
-
-        audio_row = ttk.Frame(self.audio_frame)
-        audio_row.pack(fill=tk.X)
-        self.video_audio_path = tk.StringVar()
-        ttk.Entry(audio_row, textvariable=self.video_audio_path, width=60).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(audio_row, text="选择音频", command=self.select_video_audio, width=10).pack(side=tk.LEFT, padx=5)
-
-        # === 文案选择区域（TTS模式） ===
-        self.tts_frame = ttk.LabelFrame(main_frame, text="2. 选择文案", padding="10")
-
-        tts_row1 = ttk.Frame(self.tts_frame)
-        tts_row1.pack(fill=tk.X, pady=2)
-        ttk.Label(tts_row1, text="选择文案:").pack(side=tk.LEFT)
-        self.article_combo = ttk.Combobox(tts_row1, width=50, state="readonly")
-        self.article_combo.pack(side=tk.LEFT, padx=5)
-        self.article_combo.bind("<<ComboboxSelected>>", self.on_article_select)
-        ttk.Button(tts_row1, text="刷新列表", command=self.refresh_article_list, width=10).pack(side=tk.LEFT)
-        ttk.Button(tts_row1, text="随机选择", command=self.random_select_article, width=10).pack(side=tk.LEFT, padx=5)
-
-        ttk.Label(self.tts_frame, text="文案预览:").pack(anchor=tk.W, pady=(5, 2))
-        self.article_preview = scrolledtext.ScrolledText(self.tts_frame, height=4, width=80)
-        self.article_preview.pack(fill=tk.X)
-
-        # === 视频标题 ===
-        title_frame = ttk.LabelFrame(main_frame, text="3. 视频标题（封面显示）", padding="10")
-        title_frame.pack(fill=tk.X, pady=5)
-
-        self.video_title = tk.StringVar()
-        ttk.Entry(title_frame, textvariable=self.video_title, width=60).pack(fill=tk.X)
-
-        # === 视频素材设置 ===
-        video_frame = ttk.LabelFrame(main_frame, text="4. 视频素材设置", padding="10")
-        video_frame.pack(fill=tk.X, pady=5)
-
-        video_path_frame = ttk.Frame(video_frame)
-        video_path_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(video_path_frame, text="素材文件夹:").pack(side=tk.LEFT)
-        self.video_source_var = tk.StringVar(value=self.video_source_path)
-        ttk.Entry(video_path_frame, textvariable=self.video_source_var, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(video_path_frame, text="选择", command=self.select_video_source_folder, width=6).pack(side=tk.LEFT)
-
-        video_param_frame = ttk.Frame(video_frame)
-        video_param_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(video_param_frame, text="每文件夹最多取:").pack(side=tk.LEFT)
-        self.max_per_folder = tk.StringVar(value="3")
-        ttk.Combobox(video_param_frame, textvariable=self.max_per_folder, width=5,
-                    values=["1", "2", "3", "4", "5"]).pack(side=tk.LEFT, padx=5)
-        ttk.Label(video_param_frame, text="个视频").pack(side=tk.LEFT)
-
-        # 视频素材静音选项
-        video_mute_frame = ttk.Frame(video_frame)
-        video_mute_frame.pack(fill=tk.X, pady=2)
-        self.mute_video = tk.BooleanVar(value=True)
-        ttk.Checkbutton(video_mute_frame, text="视频素材静音（只用配音，推荐）", variable=self.mute_video).pack(side=tk.LEFT)
-
-        # === 背景音乐设置 ===
-        bgm_frame = ttk.LabelFrame(main_frame, text="5. 背景音乐（可选）", padding="10")
-        bgm_frame.pack(fill=tk.X, pady=5)
-
-        bgm_enable_frame = ttk.Frame(bgm_frame)
-        bgm_enable_frame.pack(fill=tk.X, pady=2)
-        self.enable_bgm = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bgm_enable_frame, text="添加背景音乐", variable=self.enable_bgm,
-                       command=self.on_bgm_toggle).pack(side=tk.LEFT)
-
-        bgm_path_frame = ttk.Frame(bgm_frame)
-        bgm_path_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(bgm_path_frame, text="BGM文件夹:").pack(side=tk.LEFT)
-        self.bgm_folder = tk.StringVar(value=r"D:\A百家号带货视频\BGM")
-        self.bgm_entry = ttk.Entry(bgm_path_frame, textvariable=self.bgm_folder, width=45)
-        self.bgm_entry.pack(side=tk.LEFT, padx=5)
-        self.bgm_btn = ttk.Button(bgm_path_frame, text="选择", command=self.select_bgm_folder, width=6)
-        self.bgm_btn.pack(side=tk.LEFT)
-
-        bgm_vol_frame = ttk.Frame(bgm_frame)
-        bgm_vol_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(bgm_vol_frame, text="BGM音量:").pack(side=tk.LEFT)
-        self.bgm_volume = tk.StringVar(value="15")
-        ttk.Combobox(bgm_vol_frame, textvariable=self.bgm_volume, width=5,
-                    values=["5", "10", "15", "20", "25", "30"]).pack(side=tk.LEFT, padx=5)
-        ttk.Label(bgm_vol_frame, text="%").pack(side=tk.LEFT)
-
-        ttk.Label(bgm_vol_frame, text="配音音量:").pack(side=tk.LEFT, padx=(20, 0))
-        self.voice_volume = tk.StringVar(value="100")
-        ttk.Combobox(bgm_vol_frame, textvariable=self.voice_volume, width=5,
-                    values=["80", "90", "100", "110", "120"]).pack(side=tk.LEFT, padx=5)
-        ttk.Label(bgm_vol_frame, text="%").pack(side=tk.LEFT)
-
-        # === 字幕样式 ===
-        style_frame = ttk.LabelFrame(main_frame, text="6. 字幕样式", padding="10")
-        style_frame.pack(fill=tk.X, pady=5)
-
-        style_row1 = ttk.Frame(style_frame)
-        style_row1.pack(fill=tk.X, pady=2)
-
-        ttk.Label(style_row1, text="字号:").pack(side=tk.LEFT)
-        self.subtitle_size = tk.StringVar(value="36")
-        subtitle_size_combo = ttk.Combobox(style_row1, textvariable=self.subtitle_size, width=6,
-                     values=["24", "28", "32", "36", "40", "48"])
-        subtitle_size_combo.pack(side=tk.LEFT, padx=5)
-        subtitle_size_combo.bind("<<ComboboxSelected>>", self.update_subtitle_preview)
-
-        ttk.Label(style_row1, text="颜色:").pack(side=tk.LEFT, padx=(15, 0))
-        self.subtitle_color = tk.StringVar(value="金色")
-        subtitle_color_combo = ttk.Combobox(style_row1, textvariable=self.subtitle_color, width=8,
-                     values=["金色", "黄色", "橙色", "红色"])
-        subtitle_color_combo.pack(side=tk.LEFT, padx=5)
-        subtitle_color_combo.bind("<<ComboboxSelected>>", self.update_subtitle_preview)
-
-        ttk.Label(style_row1, text="位置:").pack(side=tk.LEFT, padx=(15, 0))
-        self.subtitle_position = tk.StringVar(value="底部")
-        subtitle_pos_combo = ttk.Combobox(style_row1, textvariable=self.subtitle_position, width=8,
-                     values=["底部", "中部", "顶部"])
-        subtitle_pos_combo.pack(side=tk.LEFT, padx=5)
-        subtitle_pos_combo.bind("<<ComboboxSelected>>", self.update_subtitle_preview)
-
-        # 字幕预览区域
-        preview_row = ttk.Frame(style_frame)
-        preview_row.pack(fill=tk.X, pady=(10, 5))
-
-        self.subtitle_preview_canvas = tk.Canvas(preview_row, width=400, height=80, bg="#1a1a2e", highlightthickness=1, highlightbackground="gray")
-        self.subtitle_preview_canvas.pack(side=tk.LEFT, padx=5)
-        self.update_subtitle_preview()  # 初始化预览
-
-        # === 封面样式 ===
-        cover_frame = ttk.LabelFrame(main_frame, text="7. 封面样式", padding="10")
-        cover_frame.pack(fill=tk.X, pady=5)
-
-        cover_row = ttk.Frame(cover_frame)
-        cover_row.pack(fill=tk.X, pady=2)
-
-        ttk.Label(cover_row, text="标题字号:").pack(side=tk.LEFT)
-        self.cover_font_size = tk.StringVar(value="60")
-        ttk.Combobox(cover_row, textvariable=self.cover_font_size, width=6,
-                     values=["48", "54", "60", "72", "80"]).pack(side=tk.LEFT, padx=5)
-
-        ttk.Label(cover_row, text="标题颜色:").pack(side=tk.LEFT, padx=(15, 0))
-        self.cover_color = tk.StringVar(value="金色")
-        ttk.Combobox(cover_row, textvariable=self.cover_color, width=8,
-                     values=["金色", "黄色", "橙色", "红色"]).pack(side=tk.LEFT, padx=5)
-
-        ttk.Label(cover_row, text="背景:").pack(side=tk.LEFT, padx=(15, 0))
-        self.cover_bg = tk.StringVar(value="视频首帧")
-        ttk.Combobox(cover_row, textvariable=self.cover_bg, width=10,
-                     values=["视频首帧", "黑色背景"]).pack(side=tk.LEFT, padx=5)
-
-        # === 输出设置 ===
-        output_frame = ttk.LabelFrame(main_frame, text="8. 输出设置", padding="10")
-        output_frame.pack(fill=tk.X, pady=5)
-
-        self.video_output_path = tk.StringVar(value=r"D:\A百家号带货视频\成品视频")
-        ttk.Entry(output_frame, textvariable=self.video_output_path, width=60).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(output_frame, text="选择文件夹", command=self.select_video_output_folder, width=10).pack(side=tk.LEFT, padx=5)
-
-        # === 操作按钮 ===
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(pady=15)
-
-        self.video_make_btn = ttk.Button(btn_frame, text="开始制作", command=self.start_make_video, width=15)
-        self.video_make_btn.pack(side=tk.LEFT, padx=10)
-
-        self.video_stop_btn = ttk.Button(btn_frame, text="停止", command=self.stop_make_video, width=10, state=tk.DISABLED)
-        self.video_stop_btn.pack(side=tk.LEFT, padx=10)
-
-        ttk.Button(btn_frame, text="打开输出文件夹", command=self.open_video_output, width=15).pack(side=tk.LEFT, padx=10)
-
-        # === 进度 ===
-        progress_frame = ttk.Frame(main_frame)
-        progress_frame.pack(fill=tk.X, pady=5)
-
-        self.video_progress_var = tk.DoubleVar(value=0)
-        self.video_progress_bar = ttk.Progressbar(progress_frame, variable=self.video_progress_var, maximum=100)
-        self.video_progress_bar.pack(fill=tk.X)
-
-        self.video_status_label = ttk.Label(progress_frame, text="就绪")
-        self.video_status_label.pack(pady=5)
-
-        # === 日志 ===
-        log_frame = ttk.LabelFrame(main_frame, text="制作日志", padding="10")
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-
-        self.video_log_text = scrolledtext.ScrolledText(log_frame, height=10, width=80)
-        self.video_log_text.pack(fill=tk.BOTH, expand=True)
-
-    def go_to_video_page(self):
-        """切换到视频制作页面"""
-        self.main_notebook.select(1)
-        self.refresh_article_list()
-
-    def on_video_mode_change(self):
-        """视频制作模式切换"""
-        mode = self.video_mode.get()
-        if mode == "audio":
-            self.audio_frame.pack(fill=tk.X, pady=5, after=self.audio_frame.master.winfo_children()[1])
-            self.tts_frame.pack_forget()
-        else:
-            self.tts_frame.pack(fill=tk.X, pady=5, after=self.tts_frame.master.winfo_children()[1])
-            self.audio_frame.pack_forget()
-            self.refresh_article_list()
-
-    def select_video_audio(self):
-        """选择视频配音文件"""
-        current = self.video_audio_path.get()
-        initial_dir = os.path.dirname(current) if current and os.path.exists(os.path.dirname(current)) else None
-        file_path = filedialog.askopenfilename(
-            title="选择配音文件",
-            initialdir=initial_dir,
-            filetypes=[("音频文件", "*.mp3 *.wav *.m4a"), ("所有文件", "*.*")]
-        )
-        if file_path:
-            self.video_audio_path.set(file_path)
-
-    def select_video_source_folder(self):
-        """选择视频素材文件夹"""
-        current = self.video_source_var.get()
-        initial_dir = current if current and os.path.exists(current) else None
-        folder_path = filedialog.askdirectory(title="选择视频素材文件夹", initialdir=initial_dir)
-        if folder_path:
-            self.video_source_var.set(folder_path)
-
-    def select_bgm_folder(self):
-        """选择BGM文件夹"""
-        current = self.bgm_folder.get()
-        initial_dir = current if current and os.path.exists(current) else None
-        folder_path = filedialog.askdirectory(title="选择背景音乐文件夹", initialdir=initial_dir)
-        if folder_path:
-            self.bgm_folder.set(folder_path)
-
-    def on_bgm_toggle(self):
-        """BGM开关切换"""
-        pass  # 界面会自动根据checkbox状态处理
-
-    def get_random_bgm(self):
-        """从BGM文件夹随机选择一首背景音乐"""
-        bgm_folder = self.bgm_folder.get()
-        if not os.path.exists(bgm_folder):
-            return None
-
-        bgm_files = []
-        for f in os.listdir(bgm_folder):
-            if f.lower().endswith(('.mp3', '.wav', '.m4a', '.aac', '.flac')):
-                bgm_files.append(os.path.join(bgm_folder, f))
-
-        if bgm_files:
-            return random.choice(bgm_files)
-        return None
-
-    def select_video_output_folder(self):
-        """选择视频输出文件夹"""
-        current = self.video_output_path.get()
-        initial_dir = current if current and os.path.exists(current) else None
-        folder_path = filedialog.askdirectory(title="选择输出文件夹", initialdir=initial_dir)
-        if folder_path:
-            self.video_output_path.set(folder_path)
-
-    def open_video_output(self):
-        """打开视频输出文件夹"""
-        output_path = self.video_output_path.get().replace('/', '\\')
-        os.makedirs(output_path, exist_ok=True)
-        os.startfile(output_path)
-
-    def refresh_article_list(self):
-        """刷新文案列表"""
-        options = ["-- 请选择文案 --"]
-        if self.last_articles:
-            for i, article in enumerate(self.last_articles):
-                # 提取标题（如果有）
-                lines = article.strip().split('\n')
-                title = ""
-                for line in lines:
-                    if line.startswith('【标题'):
-                        title = line.replace('【标题1】', '').replace('【标题2】', '').replace('【标题3】', '').strip()[:20]
-                        break
-                if not title:
-                    title = article[:25].replace('\n', ' ')
-                options.append(f"文案{i+1}: {title}...")
-        self.article_combo['values'] = options
-        self.article_combo.current(0)
-
-    def on_article_select(self, event=None):
-        """选择文案时显示预览"""
-        selection = self.article_combo.current()
-        if selection > 0 and self.last_articles:
-            article = self.last_articles[selection - 1]
-            self.article_preview.delete("1.0", tk.END)
-            self.article_preview.insert("1.0", article[:800] + "..." if len(article) > 800 else article)
-            # 自动提取标题
-            lines = article.strip().split('\n')
-            for line in lines:
-                if line.startswith('【标题'):
-                    title = line.replace('【标题1】', '').replace('【标题2】', '').replace('【标题3】', '').strip()
-                    self.video_title.set(title)
-                    break
-
-    def random_select_article(self):
-        """随机选择一篇文案"""
-        if self.last_articles:
-            idx = random.randint(0, len(self.last_articles) - 1)
-            self.article_combo.current(idx + 1)
-            self.on_article_select()
-        else:
-            messagebox.showinfo("提示", "没有可用的文案，请先在「文案生成」页面生成文案")
-
-    def video_log(self, message):
-        """视频制作日志"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.video_log_text.insert(tk.END, f"[{timestamp}] {message}\n")
-        self.video_log_text.see(tk.END)
-        self.root.update()
-
-    def video_update_status(self, message):
-        """更新视频制作状态"""
-        self.video_status_label.config(text=message)
-        self.root.update()
-
-    def video_update_progress(self, value):
-        """更新视频制作进度"""
-        self.video_progress_var.set(value)
-        self.root.update()
-
-    def stop_make_video(self):
-        """停止视频制作"""
-        self.video_is_running = False
-        self.video_log("用户停止了制作任务")
-        self.video_update_status("已停止")
-
-    def start_make_video(self):
-        """开始制作视频"""
-        mode = self.video_mode.get()
-
-        if mode == "audio":
-            # 音频模式：需要选择音频文件
-            audio_path = self.video_audio_path.get()
-            if not audio_path or not os.path.exists(audio_path):
-                messagebox.showerror("错误", "请选择有效的配音文件")
-                return
-        else:
-            # TTS模式：需要选择文案
-            selection = self.article_combo.current()
-            if selection <= 0 or not self.last_articles:
-                messagebox.showerror("错误", "请选择一篇文案，或先在「文案生成」页面生成文案")
-                return
-
-        video_title = self.video_title.get().strip()
-        if not video_title:
-            messagebox.showerror("错误", "请输入视频标题")
-            return
-
-        # 更新配置
-        self.video_source_path = self.video_source_var.get()
-        self.max_videos_per_folder = int(self.max_per_folder.get())
-
-        output_path = self.video_output_path.get()
-        os.makedirs(output_path, exist_ok=True)
-
-        self.video_make_btn.config(state=tk.DISABLED)
-        self.video_stop_btn.config(state=tk.NORMAL)
-        self.video_is_running = True
-        self.video_log_text.delete(1.0, tk.END)
-
-        # 在线程中执行
-        thread = threading.Thread(target=self.make_video_task, args=(mode, video_title, output_path))
-        thread.daemon = True
-        thread.start()
-
-    def make_video_task(self, mode, video_title, output_path):
-        """视频制作主任务"""
-        import subprocess
-
-        try:
-            temp_dir = os.path.join(output_path, "temp")
-            os.makedirs(temp_dir, exist_ok=True)
-
-            # 1. 获取音频
-            if mode == "audio":
-                audio_path = self.video_audio_path.get()
-                self.video_log(f"使用已有音频: {os.path.basename(audio_path)}")
-            else:
-                # TTS生成配音
-                self.video_update_status("正在生成配音...")
-                self.video_update_progress(5)
-                selection = self.article_combo.current()
-                article = self.last_articles[selection - 1]
-                # 提取正文（去掉标题部分）
-                text_content = self.extract_article_text(article)
-                audio_path = self.generate_tts(text_content, temp_dir)
-                if not audio_path:
-                    self.video_log("TTS配音生成失败")
-                    self.finish_video_task()
-                    return
-
-            if not self.video_is_running:
-                self.finish_video_task()
-                return
-
-            # 2. 获取音频时长
-            self.video_update_status("正在分析音频...")
-            self.video_update_progress(10)
-            audio_duration = self.get_audio_duration(audio_path)
-            self.video_log(f"音频时长: {audio_duration:.1f} 秒")
-
-            if not self.video_is_running:
-                self.finish_video_task()
-                return
-
-            # 3. 生成字幕（Whisper识别）
-            self.video_update_status("正在识别字幕...")
-            self.video_update_progress(15)
-            srt_path = self.transcribe_audio_for_video(audio_path, temp_dir)
-
-            if not self.video_is_running:
-                self.finish_video_task()
-                return
-
-            # 4. 收集视频素材
-            self.video_update_status("正在收集视频素材...")
-            self.video_update_progress(30)
-            video_files = self.collect_videos_for_video(audio_duration + 5)
-
-            if not video_files:
-                self.video_log("错误：没有收集到视频素材")
-                self.finish_video_task()
-                return
-
-            if not self.video_is_running:
-                self.finish_video_task()
-                return
-
-            # 5. 合并视频素材
-            self.video_update_status("正在合并视频素材...")
-            self.video_update_progress(45)
-
-            list_file = os.path.join(temp_dir, "videos.txt")
-            with open(list_file, 'w', encoding='utf-8') as f:
-                for vf in video_files:
-                    vf_fixed = vf.replace('\\', '/')
-                    f.write(f"file '{vf_fixed}'\n")
-
-            merged_video = os.path.join(temp_dir, "merged.mp4")
-            cmd = f'"{self.ffmpeg_path}" -y -f concat -safe 0 -i "{list_file}" -c copy "{merged_video}"'
-            self.video_log("合并视频素材...")
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-            # 6. 裁剪到音频长度
-            self.video_update_status("正在裁剪视频...")
-            self.video_update_progress(55)
-            trimmed_video = os.path.join(temp_dir, "trimmed.mp4")
-
-            # 根据是否静音视频素材选择不同命令
-            if self.mute_video.get():
-                # 静音视频素材
-                cmd = f'"{self.ffmpeg_path}" -y -i "{merged_video}" -t {audio_duration} -an -c:v copy "{trimmed_video}"'
-            else:
-                # 保留视频原声
-                cmd = f'"{self.ffmpeg_path}" -y -i "{merged_video}" -t {audio_duration} -c copy "{trimmed_video}"'
-            subprocess.run(cmd, shell=True, capture_output=True)
-
-            # 7. 添加音频（配音 + 可选BGM）
-            self.video_update_status("正在添加音频...")
-            self.video_update_progress(60)
-            with_audio = os.path.join(temp_dir, "with_audio.mp4")
-
-            # 获取音量设置
-            voice_vol = int(self.voice_volume.get()) / 100
-
-            if self.enable_bgm.get():
-                # 添加BGM
-                bgm_path = self.get_random_bgm()
-                if bgm_path:
-                    bgm_vol = int(self.bgm_volume.get()) / 100
-                    self.video_log(f"添加背景音乐: {os.path.basename(bgm_path)}")
-                    # 混合配音和BGM
-                    filter_complex = f"[1:a]volume={voice_vol}[voice];[2:a]volume={bgm_vol},aloop=loop=-1:size=2e+09[bgm];[voice][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]"
-                    cmd = f'"{self.ffmpeg_path}" -y -i "{trimmed_video}" -i "{audio_path}" -i "{bgm_path}" -filter_complex "{filter_complex}" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -t {audio_duration} "{with_audio}"'
-                else:
-                    self.video_log("未找到BGM文件，跳过背景音乐")
-                    cmd = f'"{self.ffmpeg_path}" -y -i "{trimmed_video}" -i "{audio_path}" -filter_complex "[1:a]volume={voice_vol}[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k "{with_audio}"'
-            else:
-                # 只添加配音
-                if voice_vol != 1.0:
-                    cmd = f'"{self.ffmpeg_path}" -y -i "{trimmed_video}" -i "{audio_path}" -filter_complex "[1:a]volume={voice_vol}[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k "{with_audio}"'
-                else:
-                    cmd = f'"{self.ffmpeg_path}" -y -i "{trimmed_video}" -i "{audio_path}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k "{with_audio}"'
-
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            if result.returncode != 0:
-                self.video_log(f"音频处理警告: {result.stderr[:200] if result.stderr else ''}")
-
-            if not self.video_is_running:
-                self.finish_video_task()
-                return
-
-            # 8. 烧录字幕（偏移1秒，补偿封面时长）
-            self.video_update_status("正在烧录字幕...")
-            self.video_update_progress(70)
-            with_subtitle = self.burn_subtitles_for_video(with_audio, srt_path, temp_dir, time_offset=1)
-
-            if not self.video_is_running:
-                self.finish_video_task()
-                return
-
-            # 9. 生成封面
-            self.video_update_status("正在生成封面...")
-            self.video_update_progress(85)
-            final_video = self.add_cover_for_video(with_subtitle, video_title, temp_dir)
-
-            # 10. 生成最终文件
-            self.video_update_status("正在生成最终视频...")
-            self.video_update_progress(95)
-
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            safe_title_file = re.sub(r'[\\/:*?"<>|]', '', video_title)[:20]
-            final_output = os.path.join(output_path, f"{timestamp}_{safe_title_file}.mp4")
-
-            import shutil
-            shutil.copy(final_video, final_output)
-
-            # 11. 清理临时文件
-            self.video_log("清理临时文件...")
-            try:
-                shutil.rmtree(temp_dir)
-            except:
-                pass
-
-            self.video_update_progress(100)
-            self.video_log(f"\n视频制作完成！")
-            self.video_log(f"输出文件: {final_output}")
-
-            self.finish_video_task()
-            messagebox.showinfo("完成", f"视频制作完成！\n保存位置: {final_output}")
-
-        except Exception as e:
-            self.video_log(f"错误: {str(e)}")
-            import traceback
-            self.video_log(traceback.format_exc())
-            self.finish_video_task()
-
-    def extract_article_text(self, article):
-        """从文案中提取正文（去掉标题）"""
-        lines = article.strip().split('\n')
-        text_lines = []
-        in_content = False
-        for line in lines:
-            if line.startswith('---') or line.startswith('═'):
-                in_content = True
-                continue
-            if in_content and not line.startswith('【标题'):
-                text_lines.append(line.strip())
-        return '\n'.join(text_lines) if text_lines else article
-
-    def generate_tts(self, text, temp_dir):
-        """使用TTS生成配音"""
-        try:
-            import edge_tts
-            import asyncio
-
-            self.video_log("正在使用Edge TTS生成配音...")
-            audio_path = os.path.join(temp_dir, "tts_audio.mp3")
-
-            async def generate():
-                communicate = edge_tts.Communicate(text, "zh-CN-YunxiNeural")
-                await communicate.save(audio_path)
-
-            asyncio.run(generate())
-            self.video_log("TTS配音生成成功")
-            return audio_path
-
-        except ImportError:
-            self.video_log("错误：未安装edge-tts，请运行: pip install edge-tts")
-            return None
-        except Exception as e:
-            self.video_log(f"TTS生成错误: {str(e)}")
-            return None
-
-    def get_audio_duration(self, audio_path):
-        """获取音频时长"""
-        import subprocess
-        cmd = f'"{self.ffprobe_path}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{audio_path}"'
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        return float(result.stdout.strip())
-
-    def get_video_duration(self, video_path):
-        """获取视频时长"""
-        import subprocess
-        cmd = f'"{self.ffprobe_path}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{video_path}"'
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        try:
-            return float(result.stdout.strip())
-        except:
-            return 0
-
-    def transcribe_audio_for_video(self, audio_path, temp_dir):
-        """使用Whisper识别音频生成字幕"""
-        try:
-            from faster_whisper import WhisperModel
-
-            self.video_log("正在加载Whisper模型...")
-
-            if self.whisper_model is None:
-                self.whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
-
-            self.video_log("开始识别音频...")
-            segments, info = self.whisper_model.transcribe(audio_path, language="zh")
-
-            srt_path = os.path.join(temp_dir, "subtitle.srt")
-            with open(srt_path, 'w', encoding='utf-8') as f:
-                for i, segment in enumerate(segments):
-                    start_str = self.seconds_to_srt_time(segment.start)
-                    end_str = self.seconds_to_srt_time(segment.end)
-                    text = segment.text.strip()
-
-                    f.write(f"{i+1}\n")
-                    f.write(f"{start_str} --> {end_str}\n")
-                    f.write(f"{text}\n\n")
-
-                    if not self.video_is_running:
-                        return None
-
-            self.video_log("Whisper识别完成")
-            return srt_path
-
-        except ImportError:
-            self.video_log("警告：未安装faster-whisper，将不添加字幕")
-            return None
-        except Exception as e:
-            self.video_log(f"Whisper识别错误: {str(e)}")
-            return None
-
-    def seconds_to_srt_time(self, seconds):
-        """秒数转SRT时间格式"""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        millis = int((seconds % 1) * 1000)
-        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
-
-    def collect_videos_for_video(self, needed_duration):
-        """收集视频素材"""
-        self.video_log(f"需要收集 {needed_duration:.1f} 秒的视频素材...")
-
-        collected_videos = []
-        total_duration = 0
-
-        subfolders = []
-        if os.path.exists(self.video_source_path):
-            for item in os.listdir(self.video_source_path):
-                item_path = os.path.join(self.video_source_path, item)
-                if os.path.isdir(item_path):
-                    subfolders.append(item_path)
-
-        if not subfolders:
-            # 如果没有子文件夹，直接从根目录取
-            subfolders = [self.video_source_path]
-
-        self.video_log(f"找到 {len(subfolders)} 个素材文件夹")
-
-        folder_video_count = {folder: 0 for folder in subfolders}
-
-        while total_duration < needed_duration:
-            found_new = False
-
-            for folder in subfolders:
-                if folder_video_count[folder] >= self.max_videos_per_folder:
-                    continue
-
-                video_files = []
-                try:
-                    for f in os.listdir(folder):
-                        if f.lower().endswith(('.mp4', '.mov', '.avi', '.mkv')):
-                            video_files.append(os.path.join(folder, f))
-                except:
-                    continue
-
-                random.shuffle(video_files)
-
-                for vf in video_files:
-                    if vf not in collected_videos:
-                        duration = self.get_video_duration(vf)
-                        if duration > 0:
-                            collected_videos.append(vf)
-                            total_duration += duration
-                            folder_video_count[folder] += 1
-                            self.video_log(f"  + {os.path.basename(vf)} ({duration:.1f}秒)")
-                            found_new = True
-                            break
-
-                if total_duration >= needed_duration:
-                    break
-
-            if not found_new:
-                self.video_log("警告：素材不足")
-                break
-
-        self.video_log(f"共收集 {len(collected_videos)} 个视频，总时长 {total_duration:.1f} 秒")
-        return collected_videos
-
-    def get_color_code(self, color_name):
-        """颜色名称转ffmpeg颜色代码"""
-        colors = {"金色": "gold", "黄色": "yellow", "橙色": "orange", "红色": "red"}
-        return colors.get(color_name, "gold")
-
-    def get_preview_color(self, color_name):
-        """颜色名称转Tkinter颜色代码"""
-        colors = {"金色": "#FFD700", "黄色": "#FFFF00", "橙色": "#FFA500", "红色": "#FF0000"}
-        return colors.get(color_name, "#FFD700")
-
-    def update_subtitle_preview(self, event=None):
-        """更新字幕预览"""
-        if not hasattr(self, 'subtitle_preview_canvas'):
-            return
-
-        canvas = self.subtitle_preview_canvas
-        canvas.delete("all")
-
-        # 获取当前设置
-        font_size = int(self.subtitle_size.get())
-        color = self.get_preview_color(self.subtitle_color.get())
-        position = self.subtitle_position.get()
-
-        # 预览文字
-        preview_text = "这是字幕预览效果"
-
-        # 计算预览字号（缩小比例显示）
-        preview_font_size = max(12, font_size // 3)
-
-        # 根据位置确定Y坐标
-        canvas_height = 80
-        if position == "底部":
-            y = canvas_height - 15
-        elif position == "中部":
-            y = canvas_height // 2
-        else:  # 顶部
-            y = 15
-
-        # 绘制文字（带黑色描边效果）
-        x = 200  # 居中
-        # 描边
-        for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1), (-2,0), (2,0), (0,-2), (0,2)]:
-            canvas.create_text(x+dx, y+dy, text=preview_text, fill="black",
-                             font=("SimHei", preview_font_size, "bold"))
-        # 主文字
-        canvas.create_text(x, y, text=preview_text, fill=color,
-                         font=("SimHei", preview_font_size, "bold"))
-
-    def get_ass_color(self, color_name):
-        """颜色名称转ASS字幕颜色代码（BGR格式）"""
-        # ASS颜色格式: &HBBGGRR (蓝绿红)
-        colors = {
-            "金色": "&H0000D7FF",
-            "黄色": "&H0000FFFF",
-            "橙色": "&H0000A5FF",
-            "红色": "&H000000FF"
-        }
-        return colors.get(color_name, "&H0000D7FF")
-
-    def burn_subtitles_for_video(self, video_path, srt_path, temp_dir, time_offset=0):
-        """烧录字幕
-
-        Args:
-            time_offset: 字幕时间偏移（秒），用于补偿封面时长
-        """
-        import subprocess
-        import shutil
-
-        if not srt_path or not os.path.exists(srt_path):
-            self.video_log("无字幕文件，跳过字幕烧录")
-            return video_path
-
-        # 如果有时间偏移，调整字幕时间
-        actual_srt_path = srt_path
-        if time_offset > 0:
-            actual_srt_path = os.path.join(temp_dir, "subtitle_offset.srt")
-            self.offset_srt_time(srt_path, actual_srt_path, time_offset)
-            self.video_log(f"字幕时间已偏移 {time_offset} 秒（补偿封面时长）")
-
-        font_size = self.subtitle_size.get()
-        font_color = self.get_ass_color(self.subtitle_color.get())
-        position = self.subtitle_position.get()
-
-        if position == "底部":
-            margin_v = 30
-            alignment = 2
-        elif position == "中部":
-            margin_v = 0
-            alignment = 5
-        else:
-            margin_v = 30
-            alignment = 8
-
-        with_subtitle = os.path.join(temp_dir, "with_subtitle.mp4")
-
-        # 复制字幕到临时目录，用简单文件名避免路径问题
-        simple_srt = os.path.join(temp_dir, "sub.srt")
-        shutil.copy(actual_srt_path, simple_srt)
-        srt_escaped = simple_srt.replace('\\', '/').replace(':', '\\:')
-
-        subtitle_filter = f"subtitles='{srt_escaped}':force_style='FontSize={font_size},PrimaryColour={font_color},OutlineColour=&H00000000,BorderStyle=1,Outline=2,Alignment={alignment},MarginV={margin_v}'"
-
-        cmd = f'"{self.ffmpeg_path}" -y -i "{video_path}" -vf "{subtitle_filter}" -c:a aac -b:a 192k "{with_subtitle}"'
-        self.video_log("正在烧录字幕...")
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            self.video_log(f"字幕烧录失败: {result.stderr[:200] if result.stderr else ''}")
-            self.video_log("使用无字幕版本")
-            return video_path
-
-        self.video_log("字幕烧录成功")
-        return with_subtitle
-
-    def offset_srt_time(self, input_srt, output_srt, offset_seconds):
-        """偏移SRT字幕时间"""
-        def parse_time(time_str):
-            parts = time_str.replace(',', ':').split(':')
-            h, m, s, ms = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-            return h * 3600 + m * 60 + s + ms / 1000
-
-        def format_time(seconds):
-            h = int(seconds // 3600)
-            m = int((seconds % 3600) // 60)
-            s = int(seconds % 60)
-            ms = int((seconds % 1) * 1000)
-            return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-        with open(input_srt, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        pattern = r'(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})'
-        def replace_time(match):
-            start = parse_time(match.group(1)) + offset_seconds
-            end = parse_time(match.group(2)) + offset_seconds
-            return f"{format_time(start)} --> {format_time(end)}"
-
-        new_content = re.sub(pattern, replace_time, content)
-        with open(output_srt, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-
-    def add_cover_for_video(self, video_path, video_title, temp_dir):
-        """添加封面"""
-        import subprocess
-
-        cover_font_size = self.cover_font_size.get()
-        cover_color = self.get_color_code(self.cover_color.get())
-        cover_bg = self.cover_bg.get()
-
-        probe_cmd = f'"{self.ffprobe_path}" -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "{video_path}"'
-        probe_result = subprocess.run(probe_cmd, shell=True, capture_output=True, text=True)
-        try:
-            width, height = map(int, probe_result.stdout.strip().split(','))
-        except:
-            width, height = 1920, 1080
-
-        cover_video = os.path.join(temp_dir, "cover.mp4")
-        cover_duration = 1  # 封面时长1秒
-
-        safe_title = video_title.replace("'", "").replace(":", "\\:").replace("\\", "/")
-        if len(safe_title) > 12:
-            mid = len(safe_title) // 2
-            safe_title = safe_title[:mid] + "\\n" + safe_title[mid:]
-
-        title_filter = f"drawtext=text='{safe_title}':fontfile='C\\:/Windows/Fonts/msyh.ttc':fontsize={cover_font_size}:fontcolor={cover_color}:borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2"
-
-        if cover_bg == "视频首帧":
-            first_frame = os.path.join(temp_dir, "first_frame.jpg")
-            cmd = f'"{self.ffmpeg_path}" -y -i "{video_path}" -vframes 1 -q:v 2 "{first_frame}"'
-            subprocess.run(cmd, shell=True, capture_output=True)
-            # 生成带静音音轨的封面视频
-            cmd = f'"{self.ffmpeg_path}" -y -loop 1 -i "{first_frame}" -f lavfi -i anullsrc=r=44100:cl=stereo -vf "{title_filter}" -t {cover_duration} -r 30 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "{cover_video}"'
-        else:
-            # 黑色背景 + 静音音轨
-            cmd = f'"{self.ffmpeg_path}" -y -f lavfi -i color=c=black:s={width}x{height}:d={cover_duration}:r=30 -f lavfi -i anullsrc=r=44100:cl=stereo -vf "{title_filter}" -c:v libx264 -pix_fmt yuv420p -c:a aac -t {cover_duration} -shortest "{cover_video}"'
-
-        self.video_log("生成封面视频...")
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            self.video_log(f"封面生成失败: {result.stderr[:200] if result.stderr else ''}")
-            self.video_log("使用无封面版本")
-            return video_path
-
-        # 重新编码主视频确保格式一致（保留音频）
-        main_encoded = os.path.join(temp_dir, "main_encoded.mp4")
-        cmd = f'"{self.ffmpeg_path}" -y -i "{video_path}" -c:v libx264 -preset fast -crf 23 -c:a aac -ar 44100 -b:a 192k "{main_encoded}"'
-        self.video_log("重新编码主视频...")
-        subprocess.run(cmd, shell=True, capture_output=True)
-
-        concat_list = os.path.join(temp_dir, "concat_list.txt")
-        with open(concat_list, 'w', encoding='utf-8') as f:
-            f.write(f"file '{cover_video.replace(chr(92), '/')}'\n")
-            f.write(f"file '{main_encoded.replace(chr(92), '/')}'\n")
-
-        final_video = os.path.join(temp_dir, "final.mp4")
-        cmd = f'"{self.ffmpeg_path}" -y -f concat -safe 0 -i "{concat_list}" -c copy "{final_video}"'
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            self.video_log("封面合并失败，使用无封面版本")
-            return video_path
-
-        self.video_log("封面合并成功")
-        return final_video
-
-    def finish_video_task(self):
-        """完成视频制作任务"""
-        self.video_is_running = False
-        self.video_make_btn.config(state=tk.NORMAL)
-        self.video_stop_btn.config(state=tk.DISABLED)
-        self.video_update_status("完成")
 
     def _create_model_config(self, parent, prefix):
         """创建模型配置UI组件"""
@@ -2797,7 +1838,8 @@ class FangxieApp:
 
         os.makedirs(output_path, exist_ok=True)
 
-        self.start_btn.config(state=tk.DISABLED)
+        if self.start_btn:
+            self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         self.is_running = True
 
@@ -2841,7 +1883,9 @@ class FangxieApp:
 
         os.makedirs(txt_output_path, exist_ok=True)
 
-        self.start_btn.config(state=tk.DISABLED)
+        # 只禁用存在的按钮
+        if self.start_btn:
+            self.start_btn.config(state=tk.DISABLED)
         self.start_txt_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         self.is_running = True
@@ -3233,11 +2277,13 @@ class FangxieApp:
     def finish_txt_task(self):
         """完成TXT生成任务，恢复UI状态"""
         self.is_running = False
-        self.start_btn.config(state=tk.NORMAL)
+        if self.start_btn:
+            self.start_btn.config(state=tk.NORMAL)
         self.start_txt_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
         if self.last_articles:
-            self.regenerate_btn.config(state=tk.NORMAL)
+            if self.regenerate_btn:
+                self.regenerate_btn.config(state=tk.NORMAL)
         self.update_status("处理完成")
 
         # 只有生成成功时才询问是否打开输出文件夹
@@ -3298,7 +2344,8 @@ class FangxieApp:
         self.is_running = False
         self.log("用户停止了生成任务")
         self.update_status("已停止")
-        self.start_btn.config(state=tk.NORMAL)
+        if self.start_btn:
+            self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
 
     # ===== 带书文案Tab方法 =====
@@ -4355,9 +3402,6 @@ class FangxieApp:
         else:
             api_url = f"{base_url}/v1/chat/completions"
 
-        log_func(f"清洗API地址: {api_url}")
-        log_func(f"清洗模型: {wash_api_model}")
-
         # 并发调用清洗API
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -4368,6 +3412,7 @@ class FangxieApp:
             try:
                 with open(fpath, 'r', encoding='utf-8') as f:
                     original_content = f.read()
+                original_length = len(original_content)
 
                 # 构建清洗提示词
                 user_prompt = wash_rules + "\n\n【原文】\n" + original_content
@@ -4396,12 +3441,13 @@ class FangxieApp:
                     result = response.json()
                     if "choices" in result and len(result["choices"]) > 0:
                         cleaned_content = result["choices"][0]["message"]["content"].strip()
+                        cleaned_length = len(cleaned_content)
 
                         # 保存清洗后的文件
                         with open(fpath, 'w', encoding='utf-8') as f:
                             f.write(cleaned_content)
 
-                        return True, f"{os.path.basename(fpath)} - 成功"
+                        return True, f"{os.path.basename(fpath)} - 清洗前:{original_length}字 → 清洗后:{cleaned_length}字"
                     else:
                         return False, f"{os.path.basename(fpath)} - API响应格式错误"
                 else:
@@ -4440,7 +3486,14 @@ class FangxieApp:
 
     def select_wash_directory(self):
         """选择要清洗的文案目录"""
-        directory = filedialog.askdirectory(title="选择文案目录")
+        # 从当前显示的目录开始，如果目录不存在则使用当前工作目录
+        current_dir = self.wash_dir_var.get()
+        if current_dir and os.path.exists(current_dir):
+            initial_dir = current_dir
+        else:
+            initial_dir = os.getcwd()
+
+        directory = filedialog.askdirectory(title="选择文案目录", initialdir=initial_dir)
         if directory:
             self.wash_dir_var.set(directory)
             # 保存到配置
@@ -4558,9 +3611,6 @@ class FangxieApp:
                 api_url = f"{base_url}/chat/completions"
             else:
                 api_url = f"{base_url}/v1/chat/completions"
-
-            self.wash_log(f"清洗API: {api_url}")
-            self.wash_log(f"清洗模型: {wash_api_model}\n")
 
             # 并发清洗
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -4680,9 +3730,11 @@ class FangxieApp:
 
         os.makedirs(output_path, exist_ok=True)
 
-        self.start_btn.config(state=tk.DISABLED)
+        if self.start_btn:
+            self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
-        self.regenerate_btn.config(state=tk.DISABLED)
+        if self.regenerate_btn:
+            self.regenerate_btn.config(state=tk.DISABLED)
         self.is_running = True
 
         self.log_text.delete(1.0, tk.END)
@@ -6761,11 +5813,13 @@ class FangxieApp:
     def finish_task(self):
         """完成任务，恢复UI状态"""
         self.is_running = False
-        self.start_btn.config(state=tk.NORMAL)
+        if self.start_btn:
+            self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
         # 如果有生成过的文案，启用重新生成按钮
         if self.last_articles:
-            self.regenerate_btn.config(state=tk.NORMAL)
+            if self.regenerate_btn:
+                self.regenerate_btn.config(state=tk.NORMAL)
         self.update_status("处理完成")
 
         # 询问是否打开输出文件夹
@@ -6855,8 +5909,9 @@ class FangxieApp:
 
         try:
             from selenium import webdriver
-            from selenium.webdriver.chrome.service import Service
             from selenium.webdriver.chrome.options import Options
+            from webdriver_manager.chrome import ChromeDriverManager
+            from selenium.webdriver.chrome.service import Service
 
             self.log("=" * 50)
             self.log("开始批量合成语音")
@@ -6882,7 +5937,9 @@ class FangxieApp:
             # 连接浏览器
             options = Options()
             options.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
-            service = Service(executable_path=CHROMEDRIVER_PATH)
+            # 使用 BitBrowser 自带的 chromedriver 146
+            chromedriver_path = r"C:\Users\Administrator\AppData\Roaming\BitBrowser\chromedriver\146\chromedriver.exe"
+            service = Service(executable_path=chromedriver_path)
             driver = webdriver.Chrome(service=service, options=options)
 
             # 确保在配音神器页面

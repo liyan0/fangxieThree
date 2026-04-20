@@ -1,8 +1,8 @@
 {
   "use_stream": false,
   "similarity_threshold": 0.72,
-  "voice_input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/流量文案",
-  "voice_output_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频配音/引导语音",
+  "voice_input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/带书文案",
+  "voice_output_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频配音/带书语音",
   "stream_main_url": "https://api.aifuwu.icu/v1",
   "stream_main_key": "sk-hc6yUaXg89eK5UgUii10DPWmdaJZdPXqPbPcKSRbmWgxeeDK",
   "stream_main_model": "gemini-3-pro-preview",
@@ -81,11 +81,11 @@
       "看到这里的朋友，人这一辈子都在和人打交道，如果对于人性茫然不知，那么你的一生就会庸庸碌碌、一事无成。所以啊，我极力推荐大家去读一读我橱窗里的这本书。这本书说尽了人情世故，讲尽了人心复杂，详细介绍了怎么做人、怎么处事、怎么沟通、怎么博弈、怎么防身、怎么化解，把所有的人性都给你讲透了。做任何事情都要顺着人性去做，你才能事半功倍。"
     ]
   },
-  "wash_type": "合并清洗",
+  "wash_type": "规则清洗",
   "wash_api_url": "https://cdn.12ai.org/v1",
   "wash_api_key": "sk-fUfL8SIUOEDliYgQ0oKx8bPsaDBXcSJfsOu2Mu3VO8NzBAZd",
   "wash_api_model": "gemini-2.5-flash",
   "wash_page_type": "规则清洗",
   "wash_page_concurrency": 3,
-  "wash_page_directory": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/带书文案/未清洗"
+  "wash_page_directory": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/引导文案/未清洗"
 }
