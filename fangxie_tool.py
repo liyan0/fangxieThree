@@ -547,6 +547,9 @@ DEFAULT_CONFIG = {
     "wash_page_type": "合并清洗",
     "wash_page_concurrency": 3,
     "wash_page_directory": "",  # 文案清洗目录路径
+    # 文章检查配置
+    "browser_ids": [],  # 比特浏览器窗口ID列表
+    "check_article_count": 10,  # 检查文章数量
     # 引流话术库（按类型分开存储）
     "yinliu_templates": {
         "置顶引流": [
@@ -985,6 +988,32 @@ class FangxieApp:
         ttk.Entry(voice_row3, textvariable=self.voice_output_path, width=60).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         ttk.Button(voice_row3, text="选择", command=self.select_voice_output_folder, width=6).pack(side=tk.LEFT)
 
+        # === 文章检查配置 ===
+        check_config_frame = ttk.LabelFrame(main_frame, text="文章检查配置（检查文章按钮使用）", padding="10")
+        check_config_frame.pack(fill=tk.X, pady=5)
+
+        # 第一行：窗口ID管理
+        check_row1 = ttk.Frame(check_config_frame)
+        check_row1.pack(fill=tk.X, pady=2)
+        ttk.Label(check_row1, text="浏览器窗口:").pack(side=tk.LEFT)
+        ttk.Button(check_row1, text="管理窗口ID", command=self.manage_browser_ids, width=12).pack(side=tk.LEFT, padx=5)
+        self.browser_ids_label = ttk.Label(check_row1, text="未配置", foreground="gray")
+        self.browser_ids_label.pack(side=tk.LEFT, padx=5)
+
+        # 第二行：检查数量
+        check_row2 = ttk.Frame(check_config_frame)
+        check_row2.pack(fill=tk.X, pady=2)
+        ttk.Label(check_row2, text="检查数量:").pack(side=tk.LEFT)
+        self.check_article_count = tk.StringVar(value=str(self.config.get("check_article_count", 10)))
+        check_count_entry = ttk.Entry(check_row2, textvariable=self.check_article_count, width=12)
+        check_count_entry.pack(side=tk.LEFT, padx=5)
+        check_count_entry.bind("<FocusOut>", self.on_check_count_change)
+        check_count_entry.bind("<Return>", self.on_check_count_change)
+        ttk.Label(check_row2, text="篇（每个窗口检查前N篇文章）", foreground="gray").pack(side=tk.LEFT)
+
+        # 更新窗口ID显示
+        self.update_browser_ids_label()
+
         # === 引流类型选择 ===
         flow_frame = ttk.LabelFrame(main_frame, text="引流类型", padding="10")
         flow_frame.pack(fill=tk.X, pady=5)
@@ -1073,6 +1102,9 @@ class FangxieApp:
 
         self.synth_voice_btn = ttk.Button(btn_frame, text="合成语音", command=self.start_synth_voice, width=12)
         self.synth_voice_btn.pack(side=tk.LEFT, padx=10)
+
+        self.check_article_btn = ttk.Button(btn_frame, text="检查文章", command=self.start_check_articles, width=12)
+        self.check_article_btn.pack(side=tk.LEFT, padx=10)
 
         self.stop_btn = ttk.Button(btn_frame, text="停止", command=self.stop_generate, width=10, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT, padx=10)
@@ -1759,6 +1791,198 @@ class FangxieApp:
             self.config["voice_output_path"] = folder_path
             save_config(self.config)
 
+    def update_browser_ids_label(self):
+        """更新窗口ID显示标签"""
+        browser_ids = self.config.get("browser_ids", [])
+        if not browser_ids:
+            self.browser_ids_label.config(text="未配置", foreground="gray")
+        else:
+            selected_count = sum(1 for item in browser_ids if item.get("selected", False))
+            self.browser_ids_label.config(
+                text=f"已配置 {len(browser_ids)} 个窗口，已选中 {selected_count} 个",
+                foreground="blue"
+            )
+
+    def manage_browser_ids(self):
+        """管理浏览器窗口ID"""
+        # 创建窗口ID管理对话框
+        dialog = tk.Toplevel(self.root)
+        dialog.title("管理浏览器窗口ID")
+        dialog.geometry("600x400")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # 说明文字
+        info_frame = ttk.Frame(dialog, padding="10")
+        info_frame.pack(fill=tk.X)
+        ttk.Label(info_frame, text="配置要检查的比特浏览器窗口ID，勾选要使用的窗口",
+                 foreground="blue").pack(anchor=tk.W)
+
+        # 列表框架
+        list_frame = ttk.Frame(dialog, padding="10")
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 创建带滚动条的列表
+        scrollbar = ttk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 使用Listbox显示窗口ID
+        listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, selectmode=tk.SINGLE, height=15)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+
+        # 加载现有配置
+        browser_ids = self.config.get("browser_ids", [])
+
+        def refresh_list():
+            """刷新列表显示"""
+            listbox.delete(0, tk.END)
+            # 按窗口名称从大到小排序
+            sorted_ids = sorted(browser_ids, key=lambda x: x.get("name", ""), reverse=True)
+            for item in sorted_ids:
+                check = "☑" if item.get("selected", False) else "☐"
+                name = item.get("name", "未命名")
+                browser_id = item.get("id", "")
+                listbox.insert(tk.END, f"{check} {name} ({browser_id[:20]}...)")
+
+        def on_double_click(event):
+            """双击切换选中状态"""
+            selection = listbox.curselection()
+            if selection:
+                idx = selection[0]
+                # 因为显示时排序了，需要找到原始数据中的对应项
+                sorted_ids = sorted(browser_ids, key=lambda x: x.get("name", ""), reverse=True)
+                item = sorted_ids[idx]
+                # 在原始列表中找到这个项并切换状态
+                for original_item in browser_ids:
+                    if original_item.get("id") == item.get("id"):
+                        original_item["selected"] = not original_item.get("selected", False)
+                        break
+                refresh_list()
+                # 保持选中状态
+                listbox.selection_set(idx)
+
+        # 绑定双击事件
+        listbox.bind("<Double-Button-1>", on_double_click)
+
+        refresh_list()
+
+        # 按钮框架
+        btn_frame = ttk.Frame(dialog, padding="10")
+        btn_frame.pack(fill=tk.X)
+
+        def add_browser_id():
+            """添加新窗口ID"""
+            add_dialog = tk.Toplevel(dialog)
+            add_dialog.title("添加窗口ID")
+            add_dialog.geometry("500x150")
+            add_dialog.transient(dialog)
+            add_dialog.grab_set()
+
+            ttk.Label(add_dialog, text="窗口名称:").grid(row=0, column=0, padx=10, pady=10, sticky=tk.W)
+            name_entry = ttk.Entry(add_dialog, width=40)
+            name_entry.grid(row=0, column=1, padx=10, pady=10)
+
+            ttk.Label(add_dialog, text="窗口ID:").grid(row=1, column=0, padx=10, pady=10, sticky=tk.W)
+            id_entry = ttk.Entry(add_dialog, width=40)
+            id_entry.grid(row=1, column=1, padx=10, pady=10)
+
+            def save_new():
+                name = name_entry.get().strip()
+                browser_id = id_entry.get().strip()
+                if not name or not browser_id:
+                    messagebox.showwarning("警告", "请填写完整信息", parent=add_dialog)
+                    return
+                browser_ids.append({"name": name, "id": browser_id, "selected": True})
+                refresh_list()
+                add_dialog.destroy()
+
+            ttk.Button(add_dialog, text="保存", command=save_new).grid(row=2, column=1, pady=10, sticky=tk.E)
+
+        def edit_browser_id():
+            """编辑选中的窗口ID"""
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("警告", "请先选择一个窗口", parent=dialog)
+                return
+
+            idx = selection[0]
+            item = browser_ids[idx]
+
+            edit_dialog = tk.Toplevel(dialog)
+            edit_dialog.title("编辑窗口ID")
+            edit_dialog.geometry("500x150")
+            edit_dialog.transient(dialog)
+            edit_dialog.grab_set()
+
+            ttk.Label(edit_dialog, text="窗口名称:").grid(row=0, column=0, padx=10, pady=10, sticky=tk.W)
+            name_entry = ttk.Entry(edit_dialog, width=40)
+            name_entry.insert(0, item.get("name", ""))
+            name_entry.grid(row=0, column=1, padx=10, pady=10)
+
+            ttk.Label(edit_dialog, text="窗口ID:").grid(row=1, column=0, padx=10, pady=10, sticky=tk.W)
+            id_entry = ttk.Entry(edit_dialog, width=40)
+            id_entry.insert(0, item.get("id", ""))
+            id_entry.grid(row=1, column=1, padx=10, pady=10)
+
+            def save_edit():
+                name = name_entry.get().strip()
+                browser_id = id_entry.get().strip()
+                if not name or not browser_id:
+                    messagebox.showwarning("警告", "请填写完整信息", parent=edit_dialog)
+                    return
+                browser_ids[idx]["name"] = name
+                browser_ids[idx]["id"] = browser_id
+                refresh_list()
+                edit_dialog.destroy()
+
+            ttk.Button(edit_dialog, text="保存", command=save_edit).grid(row=2, column=1, pady=10, sticky=tk.E)
+
+        def delete_browser_id():
+            """删除选中的窗口ID"""
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("警告", "请先选择一个窗口", parent=dialog)
+                return
+
+            if messagebox.askyesno("确认", "确定要删除选中的窗口吗？", parent=dialog):
+                idx = selection[0]
+                del browser_ids[idx]
+                refresh_list()
+
+        def toggle_selection():
+            """切换选中状态"""
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("警告", "请先选择一个窗口", parent=dialog)
+                return
+
+            idx = selection[0]
+            browser_ids[idx]["selected"] = not browser_ids[idx].get("selected", False)
+            refresh_list()
+
+        def save_and_close():
+            """保存并关闭"""
+            self.config["browser_ids"] = browser_ids
+            save_config(self.config)
+            self.update_browser_ids_label()
+            dialog.destroy()
+
+        ttk.Button(btn_frame, text="添加", command=add_browser_id, width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="编辑", command=edit_browser_id, width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="删除", command=delete_browser_id, width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="切换选中", command=toggle_selection, width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="保存", command=save_and_close, width=10).pack(side=tk.RIGHT, padx=5)
+
+    def on_check_count_change(self, event=None):
+        """检查数量改变时保存"""
+        try:
+            count = int(self.check_article_count.get())
+            self.config["check_article_count"] = count
+            save_config(self.config)
+        except:
+            pass
+
     def log(self, message, level="normal"):
         """添加日志（线程安全）"""
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -2054,6 +2278,11 @@ class FangxieApp:
 
                 self.log(f"==============================\n")
 
+                # 清洗完成后，将清洗后的文案追加到生成文案库Excel
+                self.log("\n正在将清洗后的文案追加到生成文案库...")
+                self.append_washed_articles_to_library(txt_output_path)
+                self.log("✓ 文案已追加到生成文案库Excel")
+
             self.finish_txt_task()
 
         except Exception as e:
@@ -2258,10 +2487,6 @@ class FangxieApp:
 
                 with open(filepath, 'w', encoding='utf-8') as f:
                     f.write(article_content)
-
-                # 生成文案入库Excel，便于长期去重（即使txt被移动）
-                flow_type = self.flow_type.get() if hasattr(self, "flow_type") else ""
-                self.append_generated_to_library(flow_type, selected_title or filename, article_content)
 
                 self.log(f"第{idx+1}篇TXT已保存: {filename}")
                 saved_files.append(filepath)
@@ -4300,6 +4525,70 @@ class FangxieApp:
         except Exception as e:
             self.log(f"生成文案入库失败: {str(e)}")
 
+    def append_washed_articles_to_library(self, txt_directory):
+        """读取清洗后的TXT文件，追加到生成文案库Excel"""
+        try:
+            import openpyxl
+            from openpyxl import Workbook
+
+            # 获取引流类型
+            flow_type = self.flow_type.get() if hasattr(self, "flow_type") else ""
+
+            # 获取目录下所有TXT文件
+            txt_files = [f for f in os.listdir(txt_directory) if f.endswith('.txt')]
+            if not txt_files:
+                self.log("  未找到TXT文件，跳过追加")
+                return
+
+            # 打开或创建Excel
+            if not os.path.exists(MATERIAL_LIBRARY_DIR):
+                os.makedirs(MATERIAL_LIBRARY_DIR)
+
+            if os.path.exists(GENERATED_LIBRARY_FILE):
+                wb = openpyxl.load_workbook(GENERATED_LIBRARY_FILE)
+                ws = wb[GENERATED_LIBRARY_SHEET] if GENERATED_LIBRARY_SHEET in wb.sheetnames else wb.active
+            else:
+                wb = Workbook()
+                ws = wb.active
+                ws.title = GENERATED_LIBRARY_SHEET
+                ws.append(["日期", "引流类型", "标题", "正文", "正文字数"])
+
+            today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            append_count = 0
+
+            # 逐个读取TXT文件并追加
+            for txt_file in txt_files:
+                txt_path = os.path.join(txt_directory, txt_file)
+                try:
+                    with open(txt_path, 'r', encoding='utf-8') as f:
+                        article_content = f.read().strip()
+
+                    if not article_content:
+                        continue
+
+                    # 从文件名提取标题（去掉.txt后缀）
+                    title = os.path.splitext(txt_file)[0]
+
+                    # 统计字数
+                    char_count = self.count_chinese_chars(article_content)
+
+                    # 追加到Excel
+                    ws.append([today, flow_type, title, article_content, char_count])
+                    append_count += 1
+
+                except Exception as e:
+                    self.log(f"  读取文件失败 {txt_file}: {str(e)}")
+                    continue
+
+            # 保存Excel
+            wb.save(GENERATED_LIBRARY_FILE)
+            self.log(f"  成功追加 {append_count} 篇文案到生成文案库")
+
+        except Exception as e:
+            self.log(f"追加清洗后文案失败: {str(e)}")
+            import traceback
+            self.log(traceback.format_exc())
+
     def get_generated_library_corpus(self):
         """从生成文案Excel读取全部语料，用于去重对比"""
         try:
@@ -6206,6 +6495,931 @@ class FangxieApp:
             self.log(traceback.format_exc())
         finally:
             self.root.after(0, lambda: self.synth_voice_btn.config(state=tk.NORMAL))
+
+    def click_content_management(self, driver):
+        """点击内容管理展开菜单"""
+        try:
+            js_code = '''
+            var divs = document.querySelectorAll('div._1e389dda3d71b28a-itemContent');
+            for(var i=0; i<divs.length; i++) {
+                var span = divs[i].querySelector('span._1e389dda3d71b28a-label');
+                if(span && span.innerText.includes('内容管理')) {
+                    divs[i].click();
+                    return true;
+                }
+            }
+            return false;
+            '''
+            result = driver.execute_script(js_code)
+            if result:
+                self.log("    [成功] 点击了【内容管理】")
+                return True
+            else:
+                self.log("    [失败] 未找到【内容管理】按钮")
+                return False
+        except Exception as e:
+            self.log(f"    [失败] 点击内容管理失败: {str(e)}")
+            return False
+
+    def click_works_management(self, driver):
+        """点击作品管理"""
+        try:
+            js_code = '''
+            var element = document.getElementById('asideMenuItem-作品管理');
+            if(element) {
+                element.click();
+                return true;
+            }
+            var spans = document.querySelectorAll('span._1e389dda3d71b28a-label');
+            for(var i=0; i<spans.length; i++) {
+                if(spans[i].innerText === '作品管理') {
+                    spans[i].click();
+                    return true;
+                }
+            }
+            return false;
+            '''
+            result = driver.execute_script(js_code)
+            if result:
+                self.log("    [成功] 点击了【作品管理】")
+                return True
+            else:
+                self.log("    [失败] 未找到【作品管理】按钮")
+                return False
+        except Exception as e:
+            self.log(f"    [失败] 点击作品管理失败: {str(e)}")
+            return False
+
+    def start_check_articles(self):
+        """开始检查文章"""
+        # 获取配置
+        browser_ids = self.config.get("browser_ids", [])
+        selected_browsers = [item for item in browser_ids if item.get("selected", False)]
+
+        if not selected_browsers:
+            messagebox.showerror("错误", "请先在【文章检查配置】中添加并选中要检查的窗口")
+            return
+
+        check_count = int(self.check_article_count.get())
+
+        # 确认
+        browser_names = ", ".join([item["name"] for item in selected_browsers])
+        if not messagebox.askyesno("确认",
+            f"将依次检查以下窗口的前 {check_count} 篇文章：\n\n{browser_names}\n\n是否开始？"):
+            return
+
+        # 在新线程中执行
+        self.check_article_btn.config(state=tk.DISABLED)
+        thread = threading.Thread(target=self.check_articles_task, args=(selected_browsers, check_count))
+        thread.daemon = True
+        thread.start()
+
+    def get_article_titles(self, driver, count):
+        """获取文章列表的标题"""
+        try:
+            self.log(f"\n  获取前{count}篇文章标题...")
+            js_get_titles = f'''
+            var titles = [];
+            var seenTitles = new Set();
+            var allLinks = document.querySelectorAll('a');
+            for(var i=0; i<allLinks.length; i++) {{
+                var text = allLinks[i].innerText.trim();
+                var cleanText = text.replace(/《|》/g, '');
+                if(cleanText.length > 10 && cleanText.length < 200 && !seenTitles.has(cleanText)) {{
+                    titles.push(cleanText);
+                    seenTitles.add(cleanText);
+                    if(titles.length >= {count}) {{
+                        break;
+                    }}
+                }}
+            }}
+            return titles;
+            '''
+            titles = driver.execute_script(js_get_titles)
+            self.log(f"    成功获取 {len(titles)} 个标题")
+            return titles
+        except Exception as e:
+            self.log(f"    [错误] 获取标题失败: {str(e)}")
+            return []
+
+    def do_delete_only(self, driver, container_id, article_title):
+        """只执行删除流程（文章已撤回），最多重试3次
+
+        Args:
+            driver: Selenium driver
+            container_id: 容器的临时ID（data-temp-id属性值）
+            article_title: 文章标题（用于重新定位）
+        """
+        for attempt in range(3):
+            try:
+                if attempt > 0:
+                    self.log(f"    第 {attempt + 1} 次尝试删除...")
+                    time.sleep(3)
+
+                # 通过标题重新定位文章容器，然后查找"更多"按钮
+                self.log("    通过标题重新定位文章，查找【更多】按钮...")
+                clean_title = article_title.replace('《', '').replace('》', '')
+
+                js_find_and_hover = f'''
+                var searchTitle = "{clean_title}";
+
+                // 查找标题匹配的链接
+                var allLinks = document.querySelectorAll('a');
+                var matchedLinks = [];
+
+                for(var i=0; i<allLinks.length; i++) {{
+                    var text = allLinks[i].innerText.trim();
+                    var cleanText = text.replace(/《|》/g, '');
+
+                    if(cleanText === searchTitle) {{
+                        matchedLinks.push(allLinks[i]);
+                    }}
+                }}
+
+                if(matchedLinks.length === 0) {{
+                    return {{error: 'article_not_found'}};
+                }}
+
+                // 如果有多个匹配，优先使用第二个（第一个可能是面包屑）
+                var targetLink = matchedLinks.length > 1 ? matchedLinks[1] : matchedLinks[0];
+
+                // 从链接向上查找容器
+                var container = targetLink;
+                for(var level=0; level<20; level++) {{
+                    container = container.parentElement;
+                    if(!container) break;
+
+                    // 查找包含文章信息的容器
+                    if(container.className &&
+                       (container.className.includes('article-info') ||
+                        container.className.includes('article-item') ||
+                        container.className.includes('content-item'))) {{
+                        break;
+                    }}
+
+                    // 如果找到了包含"更多"按钮的容器，也认为是有效容器
+                    var moreInContainer = container.querySelectorAll('span');
+                    for(var j=0; j<moreInContainer.length; j++) {{
+                        if(moreInContainer[j].innerText === '更多') {{
+                            break;
+                        }}
+                    }}
+                }}
+
+                if(!container || !container.parentElement) {{
+                    return {{error: 'container_not_found'}};
+                }}
+
+                // 在容器内查找"更多"按钮
+                var moreButtons = container.querySelectorAll('span');
+                for(var i=0; i<moreButtons.length; i++) {{
+                    if(moreButtons[i].innerText === '更多' && moreButtons[i].offsetParent !== null) {{
+                        var mouseoverEvent = new MouseEvent('mouseover', {{
+                            view: window,
+                            bubbles: true,
+                            cancelable: true
+                        }});
+                        moreButtons[i].dispatchEvent(mouseoverEvent);
+                        return {{success: true}};
+                    }}
+                }}
+                return {{error: 'more_button_not_found'}};
+                '''
+
+                result = driver.execute_script(js_find_and_hover)
+
+                result = driver.execute_script(js_find_and_hover)
+
+                if result.get('error'):
+                    self.log(f"    [X] {result.get('error')}")
+                    if attempt < 2:
+                        continue
+                    return False
+
+                self.log("    [OK] 已悬停在【更多】")
+                time.sleep(2)
+
+                self.log("    点击【删除】...")
+                js_click_delete = '''
+                var deleteBtns = document.querySelectorAll('span');
+                for(var i=0; i<deleteBtns.length; i++) {
+                    if(deleteBtns[i].innerText === '删除' && deleteBtns[i].offsetParent !== null) {
+                        deleteBtns[i].click();
+                        return true;
+                    }
+                }
+                return false;
+                '''
+                result = driver.execute_script(js_click_delete)
+                if not result:
+                    self.log("    [X] 未找到【删除】按钮")
+                    if attempt < 2:
+                        continue
+                    return False
+
+                self.log("    [OK] 已点击【删除】")
+                time.sleep(2)
+
+                self.log("    确认删除...")
+                js_confirm = '''
+                var confirmBtns = document.querySelectorAll('button');
+                for(var i=0; i<confirmBtns.length; i++) {
+                    var text = (confirmBtns[i].innerText || '').trim();
+                    if(text && (text.includes('确认') || text.includes('确定'))) {
+                        confirmBtns[i].click();
+                        return '点击了: ' + text;
+                    }
+                }
+                return false;
+                '''
+                result = driver.execute_script(js_confirm)
+                if not result:
+                    self.log("    [X] 未找到确认按钮")
+                    if attempt < 2:
+                        continue
+                    return False
+
+                self.log(f"    [OK] {result}")
+                self.log("    [OK][OK][OK] 文章删除成功！")
+                time.sleep(5)
+                return True
+
+            except Exception as e:
+                self.log(f"    [X] 删除失败: {str(e)}")
+                if attempt < 2:
+                    continue
+                return False
+
+        self.log("    [X] 尝试3次后仍然失败")
+        return False
+
+    def do_withdraw_and_delete(self, driver, container_id, article_title):
+        """执行撤回并删除流程
+
+        Args:
+            driver: Selenium driver
+            container_id: 容器的临时ID（data-temp-id属性值）
+            article_title: 文章标题（用于撤回后重新定位）
+        """
+        try:
+            # 直接通过容器ID定位，然后查找"更多"按钮
+            self.log("    在当前文章容器内查找【更多】按钮...")
+
+            js_hover_more = f'''
+            // 直接通过临时ID定位容器
+            var container = document.querySelector('[data-temp-id="{container_id}"]');
+
+            if(!container) {{
+                return {{error: 'container_not_found'}};
+            }}
+
+            // 在容器内查找"更多"按钮
+            var moreButtons = container.querySelectorAll('span');
+            for(var i=0; i<moreButtons.length; i++) {{
+                if(moreButtons[i].innerText === '更多' && moreButtons[i].offsetParent !== null) {{
+                    var mouseoverEvent = new MouseEvent('mouseover', {{
+                        view: window,
+                        bubbles: true,
+                        cancelable: true
+                    }});
+                    moreButtons[i].dispatchEvent(mouseoverEvent);
+                    return {{success: true}};
+                }}
+            }}
+            return {{error: 'more_button_not_found'}};
+            '''
+
+            result = driver.execute_script(js_hover_more)
+
+            if result.get('error'):
+                self.log(f"    [X] {result.get('error')}")
+                return False
+
+            self.log("    [OK] 已悬停在【更多】")
+            time.sleep(2)
+
+            self.log("    点击【撤回】...")
+            js_click_withdraw = '''
+            var withdrawBtns = document.querySelectorAll('span');
+            for(var i=0; i<withdrawBtns.length; i++) {
+                if(withdrawBtns[i].innerText === '撤回' && withdrawBtns[i].offsetParent !== null) {
+                    withdrawBtns[i].click();
+                    return true;
+                }
+            }
+            return false;
+            '''
+            if not driver.execute_script(js_click_withdraw):
+                self.log("    [X] 未找到【撤回】按钮")
+                return False
+
+            self.log("    [OK] 已点击【撤回】")
+            time.sleep(2)
+
+            self.log("    确认撤回...")
+            js_confirm = '''
+            var confirmBtns = document.querySelectorAll('button');
+            for(var i=0; i<confirmBtns.length; i++) {
+                var text = (confirmBtns[i].innerText || '').trim();
+                if(text && (text.includes('确认') || text.includes('确定'))) {
+                    confirmBtns[i].click();
+                    return '点击了: ' + text;
+                }
+            }
+            return false;
+            '''
+            result = driver.execute_script(js_confirm)
+            if not result:
+                self.log("    [X] 未找到确认按钮")
+                return False
+
+            self.log(f"    [OK] {result}")
+            self.log("    等待页面加载完成（5秒）...")
+            time.sleep(5)
+
+            # 撤回后通过标题重新查找容器并删除
+            self.log("    通过标题重新定位文章，查找【更多】按钮...")
+            clean_title = article_title.replace('《', '').replace('》', '')
+
+            js_hover_more_again = f'''
+            var searchTitle = "{clean_title}";
+
+            // 查找标题匹配的链接
+            var allLinks = document.querySelectorAll('a');
+            var matchedLinks = [];
+
+            for(var i=0; i<allLinks.length; i++) {{
+                var text = allLinks[i].innerText.trim();
+                var cleanText = text.replace(/《|》/g, '');
+
+                if(cleanText === searchTitle) {{
+                    matchedLinks.push(allLinks[i]);
+                }}
+            }}
+
+            if(matchedLinks.length === 0) {{
+                return {{error: 'article_not_found'}};
+            }}
+
+            // 如果有多个匹配，优先使用第二个（第一个可能是面包屑）
+            var targetLink = matchedLinks.length > 1 ? matchedLinks[1] : matchedLinks[0];
+
+            // 从链接向上查找容器
+            var container = targetLink;
+            for(var level=0; level<20; level++) {{
+                container = container.parentElement;
+                if(!container) break;
+
+                // 查找包含文章信息的容器
+                if(container.className &&
+                   (container.className.includes('article-info') ||
+                    container.className.includes('article-item') ||
+                    container.className.includes('content-item'))) {{
+                    break;
+                }}
+
+                // 如果找到了包含"更多"按钮的容器，也认为是有效容器
+                var moreInContainer = container.querySelectorAll('span');
+                for(var j=0; j<moreInContainer.length; j++) {{
+                    if(moreInContainer[j].innerText === '更多') {{
+                        break;
+                    }}
+                }}
+            }}
+
+            if(!container || !container.parentElement) {{
+                return {{error: 'container_not_found'}};
+            }}
+
+            // 在容器内查找"更多"按钮
+            var moreButtons = container.querySelectorAll('span');
+            for(var i=0; i<moreButtons.length; i++) {{
+                if(moreButtons[i].innerText === '更多' && moreButtons[i].offsetParent !== null) {{
+                    var mouseoverEvent = new MouseEvent('mouseover', {{
+                        view: window,
+                        bubbles: true,
+                        cancelable: true
+                    }});
+                    moreButtons[i].dispatchEvent(mouseoverEvent);
+                    return {{success: true}};
+                }}
+            }}
+            return {{error: 'more_button_not_found'}};
+            '''
+
+            result = driver.execute_script(js_hover_more_again)
+            if result.get('error'):
+                self.log(f"    [X] {result.get('error')}")
+                return False
+
+            self.log("    [OK] 已悬停在【更多】")
+            time.sleep(2)
+
+            # 点击"删除"
+            self.log("    点击【删除】...")
+            js_click_delete = '''
+            var deleteBtns = document.querySelectorAll('span');
+            for(var i=0; i<deleteBtns.length; i++) {
+                if(deleteBtns[i].innerText === '删除' && deleteBtns[i].offsetParent !== null) {
+                    deleteBtns[i].click();
+                    return true;
+                }
+            }
+            return false;
+            '''
+            if not driver.execute_script(js_click_delete):
+                self.log("    [X] 未找到【删除】按钮")
+                return False
+
+            self.log("    [OK] 已点击【删除】")
+            time.sleep(2)
+
+            # 确认删除
+            self.log("    确认删除...")
+            js_confirm_delete = '''
+            var confirmBtns = document.querySelectorAll('button');
+            for(var i=0; i<confirmBtns.length; i++) {
+                var text = (confirmBtns[i].innerText || '').trim();
+                if(text && (text.includes('确认') || text.includes('确定'))) {
+                    confirmBtns[i].click();
+                    return '点击了: ' + text;
+                }
+            }
+            return false;
+            '''
+            result = driver.execute_script(js_confirm_delete)
+            if not result:
+                self.log("    [X] 未找到确认按钮")
+                return False
+
+            self.log(f"    [OK] {result}")
+            self.log("    [OK][OK][OK] 文章删除成功！")
+            time.sleep(5)
+            return True
+
+        except Exception as e:
+            self.log(f"    [X] 撤回删除失败: {str(e)}")
+            return False
+
+    def check_article_heat_button(self, driver, article_title, article_number):
+        """检查指定文章是否有内容加热按钮"""
+        try:
+            self.log(f"\n  检查第{article_number}篇文章...")
+            self.log(f"    文章标题: {article_title}")
+
+            clean_title = article_title.replace('《', '').replace('》', '')
+
+            js_check_and_click = f'''
+            // 查找标题匹配的链接（跳过第一个，因为可能是面包屑或其他位置）
+            var allLinks = document.querySelectorAll('a');
+            var matchedLinks = [];
+            var searchTitle = "{clean_title}";
+
+            for(var i=0; i<allLinks.length; i++) {{
+                var text = allLinks[i].innerText.trim();
+                var cleanText = text.replace(/《|》/g, '');
+
+                if(cleanText === searchTitle) {{
+                    matchedLinks.push(allLinks[i]);
+                }}
+            }}
+
+            if(matchedLinks.length === 0) {{
+                return {{error: 'article_not_found'}};
+            }}
+
+            // 如果有多个匹配，优先使用第二个（第一个可能是面包屑）
+            var targetLink = matchedLinks.length > 1 ? matchedLinks[1] : matchedLinks[0];
+
+            // 从链接向上查找容器
+            var container = targetLink;
+            var articleInfoContainer = null;
+
+            for(var level=0; level<20; level++) {{
+                container = container.parentElement;
+                if(!container) break;
+
+                // 查找包含文章信息的容器（可能有多种class名）
+                if(container.className &&
+                   (container.className.includes('article-info') ||
+                    container.className.includes('article-item') ||
+                    container.className.includes('content-item'))) {{
+                    articleInfoContainer = container;
+                    break;
+                }}
+
+                // 如果找到了包含"内容加热"或"更多"按钮的容器，也认为是有效容器
+                var buttonsInContainer = container.querySelectorAll('span, button');
+                for(var j=0; j<buttonsInContainer.length; j++) {{
+                    var btnText = buttonsInContainer[j].innerText || '';
+                    if(btnText === '内容加热' || btnText === '更多') {{
+                        articleInfoContainer = container;
+                        break;
+                    }}
+                }}
+                if(articleInfoContainer) break;
+            }}
+
+            if(!articleInfoContainer) {{
+                return {{error: 'container_not_found'}};
+            }}
+
+            // 给容器添加唯一ID，用于后续删除操作
+            var uniqueId = 'article-temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            articleInfoContainer.setAttribute('data-temp-id', uniqueId);
+
+            var mouseoverEvent = new MouseEvent('mouseover', {{
+                view: window,
+                bubbles: true,
+                cancelable: true
+            }});
+            articleInfoContainer.dispatchEvent(mouseoverEvent);
+
+            var waitStart = Date.now();
+            while(Date.now() - waitStart < 500) {{}}
+
+            var allSpans = articleInfoContainer.querySelectorAll('span, button');
+            var heatButton = null;
+            for(var i=0; i<allSpans.length; i++) {{
+                var text = allSpans[i].innerText || '';
+                if(text === '内容加热') {{
+                    heatButton = allSpans[i];
+                    break;
+                }}
+            }}
+
+            if(heatButton) {{
+                heatButton.click();
+                var clickEvent = new MouseEvent('click', {{
+                    view: window,
+                    bubbles: true,
+                    cancelable: true
+                }});
+                heatButton.dispatchEvent(clickEvent);
+                return {{result: 'has_heat', clicked: true, containerId: uniqueId}};
+            }}
+
+            for(var i=0; i<allSpans.length; i++) {{
+                var text = allSpans[i].innerText || '';
+                if(text === '更多') {{
+                    return {{result: 'no_heat', containerId: uniqueId}};
+                }}
+            }}
+
+            return {{result: 'no_heat', containerId: uniqueId}};
+            '''
+
+            result = driver.execute_script(js_check_and_click)
+
+            if result.get('error'):
+                self.log(f"    [错误] {result.get('error')}")
+                return False
+
+            if result.get('result') == 'has_heat':
+                self.log(f"    [发现] 有【内容加热】按钮")
+                if result.get('clicked'):
+                    self.log(f"    [成功] 点击了【内容加热】按钮")
+                    self.log(f"    [等待] 等待弹窗或提示出现（2秒）...")
+                    time.sleep(2)
+
+                    js_close_old = '''
+                    var closeBtns = document.querySelectorAll('button');
+                    var closed = 0;
+                    for(var i=0; i<closeBtns.length; i++) {
+                        var text = (closeBtns[i].innerText || '').trim();
+                        if(text === '确定' && closeBtns[i].offsetParent !== null) {
+                            var modal = closeBtns[i].closest('div[class*="modal"]');
+                            if(modal) {
+                                var modalText = modal.innerText || '';
+                                if(modalText.includes('删除的内容无法恢复')) {
+                                    closeBtns[i].click();
+                                    closed++;
+                                }
+                            }
+                        }
+                    }
+                    return closed;
+                    '''
+                    closed_count = driver.execute_script(js_close_old)
+                    if closed_count > 0:
+                        self.log(f"    [清理] 关闭了 {closed_count} 个旧弹窗")
+                        time.sleep(1)
+
+                    js_check_result = '''
+                    var result = {type: 'unknown', text: ''};
+                    var closeButton = document.querySelector('button.cheetah-modal-close') ||
+                                     document.querySelector('button[class*="modal-close"]') ||
+                                     document.querySelector('button[class*="close"]');
+
+                    if(closeButton && closeButton.offsetParent !== null) {
+                        var modalContent = document.querySelector('div.cheetah-modal-body') ||
+                                          document.querySelector('div[class*="modal-body"]') ||
+                                          closeButton.closest('div[class*="modal"]');
+
+                        if(modalContent) {
+                            var text = modalContent.innerText || '';
+                            result.type = 'dialog';
+                            result.text = text.substring(0, 200);
+
+                            if(text.includes('删除的内容无法恢复')) {
+                                result.type = 'delete_confirm';
+                                result.text = '这是删除确认弹窗';
+                                closeButton.click();
+                                return result;
+                            }
+
+                            if(text.includes('无可用流量券')) {
+                                result.qualified = true;
+                                closeButton.click();
+                            } else {
+                                result.qualified = false;
+                                closeButton.click();
+                            }
+                            return result;
+                        }
+                    }
+
+                    var bodyText = document.body.innerText || '';
+                    if(bodyText.includes('不可加热') || bodyText.includes('不满足') ||
+                       bodyText.includes('质量不达标') || bodyText.includes('内容质量')) {
+                        result.type = 'page_message';
+                        result.qualified = false;
+                        result.text = '页面显示不可加热提示';
+                        return result;
+                    }
+
+                    result.type = 'no_message';
+                    result.qualified = true;
+                    result.text = '没有检测到任何提示信息';
+                    return result;
+                    '''
+
+                    check_result = driver.execute_script(js_check_result)
+                    result_type = check_result.get('type', 'unknown')
+                    qualified = check_result.get('qualified', False)
+                    text = check_result.get('text', '')
+
+                    # 将英文类型转换为中文
+                    type_map = {
+                        'dialog': '弹窗提示',
+                        'page_message': '页面提示',
+                        'no_message': '无提示',
+                        'delete_confirm': '删除确认弹窗',
+                        'unknown': '未知'
+                    }
+                    result_type_cn = type_map.get(result_type, result_type)
+
+                    self.log(f"    [检测类型] {result_type_cn}")
+                    self.log(f"    [提示内容] {text[:100]}")
+
+                    if result_type == 'dialog':
+                        if qualified:
+                            self.log(f"    [结果] ✓ 合格（弹窗：无可用流量券）")
+                            return True
+                        else:
+                            self.log(f"    [结果] ✗ 不合格（弹窗显示其他内容）")
+                            self.log(f"\n    开始执行撤回删除...")
+                            container_id = result.get('containerId')
+                            if self.do_withdraw_and_delete(driver, container_id, article_title):
+                                return False
+                            else:
+                                self.log(f"    [X] 撤回删除失败")
+                                return False
+                    elif result_type == 'page_message':
+                        self.log(f"    [结果] ✗ 不合格（页面提示：不可加热）")
+                        self.log(f"    等待提示自动消失（3秒）...")
+                        time.sleep(3)
+
+                        self.log(f"\n    开始执行撤回删除...")
+                        container_id = result.get('containerId')
+                        if self.do_withdraw_and_delete(driver, container_id, article_title):
+                            return False
+                        else:
+                            self.log(f"    [X] 撤回删除失败")
+                            return False
+                    else:
+                        self.log(f"    [结果] ✓ 可能合格（没有提示）")
+                        return True
+
+                return True
+            else:
+                self.log(f"    [发现] 没有【内容加热】按钮")
+                self.log(f"\n    文章已撤回，开始执行删除...")
+                container_id = result.get('containerId')
+                if self.do_delete_only(driver, container_id, article_title):
+                    return False
+                else:
+                    self.log(f"    [X] 删除失败")
+                    return False
+
+        except Exception as e:
+            self.log(f"    [错误] 检查文章失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def check_articles_task(self, selected_browsers, check_count):
+        """检查文章任务"""
+        BITBROWSER_API = "http://127.0.0.1:54902"
+        CHROMEDRIVER_PATH = r"C:\Users\Administrator\AppData\Roaming\BitBrowser\chromedriver\140\chromedriver.exe"
+
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+            from selenium.webdriver.chrome.service import Service
+
+            self.log("=" * 50)
+            self.log("开始检查文章")
+            self.log("=" * 50)
+
+            # 按窗口名称从大到小排序
+            selected_browsers = sorted(selected_browsers, key=lambda x: x.get("name", ""), reverse=True)
+
+            total_checked = 0
+            total_can_heat = 0
+            total_cannot_heat = 0
+            total_error = 0
+
+            for idx, browser_item in enumerate(selected_browsers, 1):
+                browser_name = browser_item["name"]
+                browser_id = browser_item["id"]
+
+                self.log(f"\n[{idx}/{len(selected_browsers)}] 正在检查窗口: {browser_name}")
+                self.log(f"窗口ID: {browser_id}")
+
+                # 每个账号单独统计
+                account_checked = 0
+                account_can_heat = 0
+                account_cannot_heat = 0
+                account_error = 0
+
+                driver = None
+                try:
+                    self.log("  正在打开比特浏览器...")
+                    url = f"{BITBROWSER_API}/browser/open"
+                    data = {"id": browser_id}
+                    resp = requests.post(url, json=data)
+                    result = resp.json()
+
+                    if not result.get("success"):
+                        self.log(f"  打开浏览器失败: {result}")
+                        continue
+
+                    ws_url = result["data"]["ws"]
+                    port = ws_url.split(":")[2].split("/")[0]
+                    self.log(f"  浏览器已打开，端口: {port}")
+                    time.sleep(2)
+
+                    options = Options()
+                    options.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
+                    # 设置页面加载策略为none，不等待页面完全加载
+                    options.page_load_strategy = 'none'
+                    service = Service(executable_path=CHROMEDRIVER_PATH)
+                    driver = webdriver.Chrome(service=service, options=options)
+                    self.log("  已连接到浏览器")
+
+                    # 确保操作第一个标签页
+                    all_handles = driver.window_handles
+                    if len(all_handles) > 0:
+                        driver.switch_to.window(all_handles[0])
+                        self.log(f"  当前有 {len(all_handles)} 个标签页，已切换到第一个标签页")
+
+                    # 强制跳转到百家号首页
+                    self.log("\n  强制跳转到百家号首页...")
+                    target_url = "https://baijiahao.baidu.com/builder/rc/home"
+                    driver.get(target_url)
+                    self.log(f"  已跳转到: {target_url}")
+                    self.log("  等待页面加载（8秒）...")
+                    time.sleep(8)
+
+                    self.log("\n  点击【内容管理】展开菜单...")
+                    for attempt in range(3):
+                        if attempt > 0:
+                            self.log(f"  第{attempt+1}次尝试...")
+                            time.sleep(2)
+                        if self.click_content_management(driver):
+                            break
+                    else:
+                        self.log("  [失败] 3次尝试均失败")
+                        continue
+
+                    time.sleep(1)
+
+                    self.log("\n  点击【作品管理】...")
+                    for attempt in range(3):
+                        if attempt > 0:
+                            self.log(f"  第{attempt+1}次尝试...")
+                            time.sleep(2)
+                        if self.click_works_management(driver):
+                            break
+                    else:
+                        self.log("  [失败] 3次尝试均失败")
+                        continue
+
+                    self.log("  等待作品管理页面加载（5秒）...")
+                    time.sleep(5)
+
+                    current_url = driver.current_url or ""
+                    self.log(f"  当前URL: {current_url}")
+
+                    titles = self.get_article_titles(driver, check_count)
+
+                    if titles and len(titles) > 0 and titles[0] not in ['首页', '内容管理', '(未找到标题)']:
+                        self.log("\n" + "=" * 50)
+                        self.log(f"前{len(titles)}篇文章标题：")
+                        self.log("=" * 50)
+                        for i, title in enumerate(titles):
+                            self.log(f"  第{i+1}篇: {title}")
+                        self.log("=" * 50)
+                    else:
+                        self.log("\n[警告] 未能获取到正确的文章标题")
+                        self.log(f"  获取到的内容: {titles}")
+                        self.log("  再等待2秒重试...")
+                        time.sleep(2)
+                        titles = self.get_article_titles(driver, check_count)
+                        if titles and len(titles) > 0 and titles[0] not in ['首页', '内容管理', '(未找到标题)']:
+                            self.log("\n" + "=" * 50)
+                            self.log(f"前{len(titles)}篇文章标题：")
+                            self.log("=" * 50)
+                            for i, title in enumerate(titles):
+                                self.log(f"  第{i+1}篇: {title}")
+                            self.log("=" * 50)
+                        else:
+                            self.log("\n[失败] 仍然无法获取文章标题")
+                            continue
+
+                    self.log(f"\n开始检查前{len(titles)}篇文章...")
+
+                    for i in range(len(titles)):
+                        has_heat = self.check_article_heat_button(driver, titles[i], i+1)
+                        account_checked += 1
+
+                        # 根据返回值统计
+                        if has_heat is True:
+                            account_can_heat += 1
+                        elif has_heat is False:
+                            account_cannot_heat += 1
+                        else:
+                            account_error += 1
+
+                        self.log(f"\n  等待操作完成（3秒）...")
+                        time.sleep(3)
+
+                    # 输出当前账号的统计结果
+                    self.log(f"\n" + "=" * 50)
+                    self.log(f"窗口 {browser_name} 检查完成！")
+                    self.log(f"  检查文章: {account_checked} 篇")
+                    self.log(f"  可以加热: {account_can_heat} 篇")
+                    self.log(f"  不可加热: {account_cannot_heat} 篇")
+                    if account_error > 0:
+                        self.log(f"  检查出错: {account_error} 篇")
+                    self.log("=" * 50)
+
+                    # 累加到总统计
+                    total_checked += account_checked
+                    total_can_heat += account_can_heat
+                    total_cannot_heat += account_cannot_heat
+                    total_error += account_error
+
+                except Exception as e:
+                    self.log(f"  窗口 {browser_name} 检查出错: {str(e)}")
+                    import traceback
+                    self.log(traceback.format_exc())
+                finally:
+                    if driver:
+                        try:
+                            driver.quit()
+                        except:
+                            pass
+
+                    try:
+                        close_url = f"{BITBROWSER_API}/browser/close"
+                        requests.post(close_url, json={"id": browser_id})
+                        self.log(f"  浏览器窗口已关闭")
+                    except:
+                        pass
+
+                    time.sleep(1)
+
+            self.log("\n" + "=" * 50)
+            self.log("所有窗口检查完成！总统计结果：")
+            self.log(f"  总共检查: {total_checked} 篇")
+            self.log(f"  可以加热: {total_can_heat} 篇")
+            self.log(f"  不可加热: {total_cannot_heat} 篇")
+            if total_error > 0:
+                self.log(f"  检查出错: {total_error} 篇")
+            self.log("=" * 50)
+
+            self.root.after(0, lambda: messagebox.showinfo("完成",
+                f"文章检查完成！\n\n总共检查: {total_checked} 篇\n可以加热: {total_can_heat} 篇\n不可加热: {total_cannot_heat} 篇" +
+                (f"\n检查出错: {total_error} 篇" if total_error > 0 else "")))
+
+        except Exception as e:
+            self.log(f"错误: {str(e)}")
+            import traceback
+            self.log(traceback.format_exc())
+        finally:
+            self.root.after(0, lambda: self.check_article_btn.config(state=tk.NORMAL))
 
 
 def main():

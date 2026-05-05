@@ -1,8 +1,8 @@
 {
   "use_stream": false,
   "similarity_threshold": 0.72,
-  "voice_input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/带书文案",
-  "voice_output_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频配音/带书语音",
+  "voice_input_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/引导文案",
+  "voice_output_path": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频配音/引导语音",
   "stream_main_url": "https://api.aifuwu.icu/v1",
   "stream_main_key": "sk-hc6yUaXg89eK5UgUii10DPWmdaJZdPXqPbPcKSRbmWgxeeDK",
   "stream_main_model": "gemini-3-pro-preview",
@@ -85,7 +85,45 @@
   "wash_api_url": "https://cdn.12ai.org/v1",
   "wash_api_key": "sk-fUfL8SIUOEDliYgQ0oKx8bPsaDBXcSJfsOu2Mu3VO8NzBAZd",
   "wash_api_model": "gemini-2.5-flash",
-  "wash_page_type": "规则清洗",
+  "wash_page_type": "提示词清洗",
   "wash_page_concurrency": 3,
-  "wash_page_directory": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/引导文案/未清洗"
+  "wash_page_directory": "D:/AIDownloadFiles/国学json/百家号带货视频/baijiadaihuo/input/视频文案/未清洗文案",
+  "browser_ids": [
+    {
+      "name": "175号-又是新号_3",
+      "id": "5b3b94cd59e14c8fa08c5ac60f615231",
+      "selected": true
+    },
+    {
+      "name": "172号-未实名-恭喜发大财",
+      "id": "088cb18155644b67834765ca56daa670",
+      "selected": true
+    },
+    {
+      "name": "160号-一叶先生",
+      "id": "79d124dfe3d44432a7593ab3ef8f6c73",
+      "selected": false
+    },
+    {
+      "name": "161号-灵虚子",
+      "id": "73b33c1a284e4b45ba464d2183ac04ad",
+      "selected": false
+    },
+    {
+      "name": "162号-空山大师",
+      "id": "412210ccb75f4b2291d03db117e7fd18",
+      "selected": false
+    },
+    {
+      "name": "158号-一篇般若照凡尘",
+      "id": "b5e9fd8fc56f4005a012151012d37d00",
+      "selected": false
+    },
+    {
+      "name": "159号-一篇上清观云客",
+      "id": "f8d7f0e261fa441e9588f24760d07852",
+      "selected": false
+    }
+  ],
+  "check_article_count": 3
 }
